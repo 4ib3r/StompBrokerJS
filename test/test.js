@@ -9,8 +9,7 @@ server.listen(61614);
 
 module.exports = stompServer;
 
-stompServer.subscribe("/test");
-
-stompServer.on('/test', function(msg) {
-  console.log("MSG: ", msg);
+stompServer.subscribe("/**", function(msg, headers) {
+  var topic = headers.destination;
+  console.log(topic, "->", msg);
 });

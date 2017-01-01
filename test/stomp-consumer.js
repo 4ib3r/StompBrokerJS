@@ -13,7 +13,7 @@ client.connect(headers, function (error) {
     console.error(error.headers.message);
   } else {
     console.log("Connected");
-    client.subscribe("/test", function(msg) {
+    client.subscribe("/*", function(msg) {
       console.log("Received", msg);
     });
   }

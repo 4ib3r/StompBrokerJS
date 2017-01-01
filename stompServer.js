@@ -11,7 +11,7 @@ var StompServer = function (config) {
     debug: config.debug || function(args) {}
   };
   this.connections = {};
-  this.subscribes = {};
+  this.subscribes = [];
   this.frameHandler = new stomp.FrameHandler(this);
   this.heartBeatConfig = {client: 0, server: 0};
 
@@ -59,18 +59,30 @@ var StompServer = function (config) {
   };
 
   this.onSend = function (socket, args, callback) {
-    var sub = this.subscribes[args.dest];
-    if (sub) {
-      for (var id in sub) {
-        var idParts = id.split("|");
-        var sock = sub[id];
-        if (socket.sessionId == sock.sessionId) {
-          continue;
+    for (var i in this.subscribes) {
+      var sub = this.subscribes[i]
+      if (socket.sessionId == sub.sessionId) {
+        continue;
+      }
+      var tokens = args.dest.substr(args.dest.indexOf('/')+1).split(".");
+      var match = true;
+      for (var t in tokens) {
+        var token = tokens[t];
+        if (sub.tokens[t] == undefined ||
+          (sub.tokens[t] != token && sub.tokens[t] != '*' && sub.tokens[t] != '**')) {
+          match = false;
+          break;
+        } else if (sub.tokens[t] == "**") {
+          break;
         }
+      }
+      if (match) {
+        var sock = sub.socket;
         stomp.StompUtils.sendCommand(sock, "MESSAGE", {
-          subscription: idParts[0],
+          subscription: sub.id,
           'message-id': stomp.genId("msg"),
           destination: args.dest,
+          'topic': sub.topic,
           'content-type': 'text/plain',
           'content-length': args.frame.headers['content-length']
         }, args.frame.body);
@@ -80,20 +92,22 @@ var StompServer = function (config) {
   };
 
   this.onSubscribe = function(socket, args) {
-    if (this.subscribes[args.dest] == undefined) {
-      this.subscribes[args.dest] = {};
-    }
-    var id = args.id + "|" + socket.sessionId;
-    this.subscribes[args.dest][id] = socket;
-    this.conf.debug("Server subscribe", id, args.dest);
+    this.subscribes.push({
+      id: args.id,
+      sessionId: socket.sessionId,
+      topic: args.dest,
+      tokens: args.dest.substr(args.dest.indexOf('/')+1).split("."),
+      socket: socket
+    });
+    this.conf.debug("Server subscribe", args.id, args.dest);
     return true;
   };
 
   this.onUnsubscribe = function (socket, subId) {
-    var id = subId + "|" + socket.sessionId;
     for (var t in this.subscribes) {
-      if (this.subscribes[t][id]) {
-        delete this.subscribes[t][id];
+      var sub = this.subscribes[t];
+      if (sub.id == subId && sub.sessionId == socket.sessionId) {
+        delete this.subscribes[t];
         return true;
       }
     }
@@ -102,16 +116,23 @@ var StompServer = function (config) {
   /**############# END EVENTS ###################### */
 
   /** ################ FUNCTIONS ################### */
-  this.subscribe = function(topic) {
-    if (this.subscribes[topic] == undefined) {
-      this.subscribes[topic] = {};
-    }
-    this.subscribes[topic]["1|1"] = {
+  this.subscribe = function(topic, callback) {
+    var id = "self_" + Math.floor(Math.random() * 99999999999);
+    this.subscribes.push({
+      topic: topic,
+      tokens: topic.substr(topic.indexOf('/')+1).split("."),
+      id: id,
       sessionId: "self_1234",
-      send: function(frame) {
-        this.emit(topic, frame.body, frame.headers);
-      }.bind(this)
-    };
+      socket: {
+        rawFrame: true,
+        sessionId: "self_1234",
+        send: function (frame) {
+          var body = frame.body != undefined ? frame.body.toString() : '';
+          this.emit(id, body, frame.headers);
+        }.bind(this)
+      }
+    });
+    this.on(id, callback)
   };
 
   this.send = function(topic, headers, body) {

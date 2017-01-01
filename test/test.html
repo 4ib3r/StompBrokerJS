@@ -8,7 +8,8 @@
 <pre id="test">
 
 </pre>
-<input type="text" id="sender"/><button onclick="send()">Send</button>
+<input type="text" id="topic" value="/test.sensor"/>
+<textarea id="sender"></textarea><button onclick="send()">Send</button>
 <script type="application/javascript">
  // var ws = new SockJS(url);
 //var client = Stomp.over(ws);
@@ -25,8 +26,8 @@
      console.error(error.headers.message);
    } else {
      console.log("Connected");
-     client.subscribe("/test", function(msg) {
-       console.log("Received", msg);
+     client.subscribe("/*", function(msg, t) {
+       console.log("Received", msg, t);
      });
    }
  });
@@ -38,7 +39,7 @@
       };
     })
  function send() {
-      client.send("/test", {}, $("#sender").val());
+      client.send($("#topic").val(), {}, $("#sender").val());
  }
 </script>
 </body>
