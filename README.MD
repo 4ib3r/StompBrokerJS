@@ -51,7 +51,7 @@ stompServer.send('/test', {}, 'testMsg');
 ## Typedefs
 
 <dl>
-<dt><a href="#ServerConfig">ServerConfig</a> : <code>Object</code></dt>
+<dt><a href="#ServerConfig">ServerConfig</a> : <code>object</code></dt>
 <dd><p>STOMP Server configuration</p>
 </dd>
 <dt><a href="#OnSubscribedMessageCallback">OnSubscribedMessageCallback</a> : <code>function</code></dt>
@@ -67,7 +67,8 @@ stompServer.send('/test', {}, 'testMsg');
 
 * [StompServer](#StompServer) ⇐ <code>EventEmitter</code>
     * [new StompServer(config)](#new_StompServer_new)
-    * [.subscribe(topic, callback)](#StompServer+subscribe)
+    * [.subscribe(topic, callback)](#StompServer+subscribe) ⇒ <code>string</code>
+    * [.unsubscribe(id)](#StompServer+unsubscribe)
     * [.send(topic, headers, body)](#StompServer+send)
 
 <a name="new_StompServer_new"></a>
@@ -80,15 +81,27 @@ stompServer.send('/test', {}, 'testMsg');
 
 <a name="StompServer+subscribe"></a>
 
-### stompServer.subscribe(topic, callback)
+### stompServer.subscribe(topic, callback) ⇒ <code>string</code>
 Subsribe topic
 
 **Kind**: instance method of <code>[StompServer](#StompServer)</code>  
+**Returns**: <code>string</code> - Subscription id  
 
 | Param | Type | Description |
 | --- | --- | --- |
 | topic | <code>string</code> | Subscribed destination, wildcard is supported |
 | callback | <code>[OnSubscribedMessageCallback](#OnSubscribedMessageCallback)</code> | Callback function |
+
+<a name="StompServer+unsubscribe"></a>
+
+### stompServer.unsubscribe(id)
+Unsubscribe topic with subscription id
+
+**Kind**: instance method of <code>[StompServer](#StompServer)</code>  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| id | <code>string</code> | Subscription id |
 
 <a name="StompServer+send"></a>
 
@@ -105,15 +118,16 @@ Send message to topic
 
 <a name="ServerConfig"></a>
 
-## ServerConfig : <code>Object</code>
+## ServerConfig : <code>object</code>
 STOMP Server configuration
 
 **Kind**: global typedef  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| server | <code>Object</code> |  | Http server reference |
+| server | <code>http.Server</code> |  | Http server reference |
 | [debug] | <code>function</code> | <code>function(args) {}</code> | Debug function |
+| [path] | <code>string</code> | <code>&quot;\&quot;/stomp\&quot;&quot;</code> | Websocket path |
 
 <a name="OnSubscribedMessageCallback"></a>
 
