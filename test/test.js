@@ -1,6 +1,6 @@
 var http = require("http");
 var StompServer = require('../stompServer');
-
+var chai = require('chai');
 
 var server = http.createServer();
 var stompServer = new StompServer({server: server});

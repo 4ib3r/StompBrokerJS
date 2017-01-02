@@ -4,12 +4,32 @@ var WebSocketServer = require('websocket').server;
 var EventEmitter = require('events');
 var util = require('util');
 
+/**
+ * STOMP Server configuration
+ * @typedef {Object} ServerConfig
+ * @param {Object} server = http server reference
+ * @param {boolean=} config.debug enable debugging
+ * */
+
+
+/**
+ * @class
+ * @augments EventEmitter
+ * Create stomp server with config
+ * @param {ServerConfig} config Configuration for STOMP server
+ */
 var StompServer = function (config) {
   EventEmitter.call(this);
+  if (config == undefined) {
+    config = {};
+  }
   this.conf = {
-    server: config.server || http.createServer(),
+    server: config.server,
     debug: config.debug || function(args) {}
   };
+  if (this.conf.server == undefined) {
+    throw "Server is required";
+  }
   this.connections = {};
   this.subscribes = [];
   this.frameHandler = new stomp.FrameHandler(this);
@@ -44,7 +64,8 @@ var StompServer = function (config) {
     }.bind(this));
   }.bind(this));
 
-  /**############# EVENTS ###################### */
+  /*############# EVENTS ###################### */
+
   this.onClientConnected = function(socket, args) {
     socket.clientHeartBeat = {client: args.hearBeat[0], server: args.hearBeat[1]};
     this.conf.debug("CONNECT", socket.sessionId, socket.clientHeartBeat, args.headers);
@@ -79,9 +100,9 @@ var StompServer = function (config) {
       if (match) {
         var sock = sub.socket;
         stomp.StompUtils.sendCommand(sock, "MESSAGE", {
-          subscription: sub.id,
+          'subscription': sub.id,
           'message-id': stomp.genId("msg"),
-          destination: args.dest,
+          'destination': args.dest,
           'topic': sub.topic,
           'content-type': 'text/plain',
           'content-length': args.frame.headers['content-length']
@@ -113,9 +134,25 @@ var StompServer = function (config) {
     }
     return false;
   };
-  /**############# END EVENTS ###################### */
+  /*############# END EVENTS ###################### */
 
-  /** ################ FUNCTIONS ################### */
+  /* ################ FUNCTIONS ################### */
+  /**
+   * Subscription callback method
+   *
+   * @callback OnSubscribedMessageCallback
+   * @param {string} msg Message body
+   * @param {object} headers Message headers
+   * @param {string} headers.destination Message destination
+   * @param {string} headers.subscription id of subscription
+   * @param {string} headers.message-id Id of message
+   * @param {string} headers.content-type Content type
+   * @param {string} headers.content-length Content length
+   * */
+
+  /** Subsribe topic
+   * @param {string} topic subscribed destination, wildcard is supported
+   * @param {OnSubscribedMessageCallback} callback callback function */
   this.subscribe = function(topic, callback) {
     var id = "self_" + Math.floor(Math.random() * 99999999999);
     this.subscribes.push({
@@ -135,6 +172,10 @@ var StompServer = function (config) {
     this.on(id, callback)
   };
 
+  /** Send message to topic
+   * @param {string} topic destination for message
+   * @param {object} headers message headers
+   * @param {string} body */
   this.send = function(topic, headers, body) {
     var _headers = {};
     if (headers) {
@@ -154,7 +195,7 @@ var StompServer = function (config) {
     };
     this.onSend(args);
   };
-  /** ############# END FUNCTIONS ###################### */
+  /* ############# END FUNCTIONS ###################### */
 
   function connectionClose(socket) {
     delete this.connections[socket.sessionId];
@@ -171,4 +212,6 @@ var StompServer = function (config) {
 
 };
 util.inherits(StompServer, EventEmitter);
+
+/** Create a StompServer */
 module.exports = StompServer;

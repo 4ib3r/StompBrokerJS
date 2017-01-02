@@ -4,7 +4,7 @@
   "description": "Simple STOMP 1.1 Broker for nodejs http applications.",
   "main": "stompServer.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test/test.js"
   },
   "repository": {
     "type": "git",
@@ -26,6 +26,7 @@
     "websocket": "^1.0.24"
   },
   "devDependencies": {
+    "chai": "^3.5.0",
     "stompjs": "^2.3.3"
   }
 }
