@@ -9,7 +9,7 @@ var util = require('util');
  * @typedef {object} ServerConfig
  * @param {http.Server} server Http server reference
  * @param {function} [debug=function(args) {}] Debug function
- * @param {string} [path="/stomp"] Websocket path
+ * @param {string} [path=/stomp] Websocket path
  * */
 
 
@@ -32,15 +32,11 @@ var StompServer = function (config) {
   if (this.conf.server == undefined) {
     throw "Server is required";
   }
-  this.connections = {};
+
   this.subscribes = [];
   this.frameHandler = new stomp.FrameHandler(this);
   this.heartBeatConfig = {client: 0, server: 0};
 
-  this.updateHeartBeatConfig = function (parts) {
-    this.heartBeatConfig.client = parseInt(parts[0]);
-    this.heartBeatConfig.server = parseInt(parts[1]);
-  };
 
   this.socket = new WebSocketServer({
     server: this.conf.server,
@@ -48,17 +44,26 @@ var StompServer = function (config) {
     perMessageDeflate: false
   });
 
+  /**
+   * Client error event
+   * @event StompServer#error
+   * @type {object}
+   * */
   this.socket.on('error', function (err) {
     this.conf.debug(err);
     this.emit('error', err);
   }.bind(this));
 
+  /**
+   * Client connecting event, emitted after socket is opened.
+   * @event StompServer#connecting
+   * @type {object}
+   * @property {string} sessionId
+   * */
   this.socket.on('connection', function (webSocket) {
     webSocket.sessionId = stomp.StompUtils.genId();
+    this.emit('connecting', webSocket.sessionId);
     this.conf.debug("Connect", webSocket.sessionId);
-    this.connections[webSocket.sessionId] = {
-      socket: webSocket
-    };
     webSocket.on('message', parseRequest.bind(this, webSocket));
     webSocket.on('close', connectionClose.bind(this, webSocket));
     webSocket.on('error', function (err) {
@@ -69,15 +74,31 @@ var StompServer = function (config) {
 
   /*############# EVENTS ###################### */
 
+  /**
+   * Client connected event, emitted after connection established and negotiated
+   * @event StompServer#connected
+   * @type {object}
+   * @property {string} sessionId
+   * @property {object} headers
+   * */
   this.onClientConnected = function (socket, args) {
     socket.clientHeartBeat = {client: args.hearBeat[0], server: args.hearBeat[1]};
     this.conf.debug("CONNECT", socket.sessionId, socket.clientHeartBeat, args.headers);
-    this.emit('connect', socket.sessionId, args.headers);
+    this.emit('connected', socket.sessionId, args.headers);
     return true;
   };
 
+
+  /**
+   * Client disconnected event
+   * @event StompServer#disconnected
+   * @type {object}
+   * @property {string} sessionId
+   * */
   this.onDisconnect = function (socket, receiptId) {
-    this.emit('disconnect', socket.sessionId);
+    this.connectionClose(socket).bind(this);
+    this.conf.debug("DISCONNECT", socket.sessionId);
+    this.emit('disconnected', socket.sessionId);
     this.conf.debug("DISCONNECT", socket.sessionId, receiptId);
     return true;
   };
@@ -171,8 +192,14 @@ var StompServer = function (config) {
 
   /** Subsribe topic
    * @param {string} topic Subscribed destination, wildcard is supported
-   * @param {OnSubscribedMessageCallback} callback Callback function
-   * @return {string} Subscription id */
+   * @param {OnSubscribedMessageCallback=} callback Callback function
+   * @return {string} Subscription id, when message is received event with this id is emitted
+   * @example
+   * stompServer.subscribe("/test.data", function(msg, headers) {});
+   * //or alternative
+   * var subs_id = stompServer.subscribe("/test.data");
+   * stompServer.on(subs_id, function(msg, headers) {});
+   * */
   this.subscribe = function (topic, callback) {
     var id = "self_" + Math.floor(Math.random() * 99999999999);
     this.subscribes.push({
@@ -182,16 +209,20 @@ var StompServer = function (config) {
       sessionId: "self_1234",
       socket: selfSocket(this, id)
     });
-    this.on(id, callback);
+    if (callback) {
+      this.on(id, callback);
+    }
     return id;
   };
 
   /** Unsubscribe topic with subscription id
    * @param {string} id Subscription id
+   * @return {boolean} Subscription is deleted
    * */
   this.unsubscribe = function(id) {
-    this.onUnsubscribe(selfSocket(this, id), id);
-  }
+    this.removeAllListeners(id);
+    return this.onUnsubscribe(selfSocket(this, id), id);
+  };
 
   /** Send message to topic
    * @param {string} topic Destination for message
@@ -218,10 +249,17 @@ var StompServer = function (config) {
     };
     this.onSend(selfSocket(this, 'internal'), args);
   };
+
   /* ############# END FUNCTIONS ###################### */
 
   function connectionClose(socket) {
-    delete this.connections[socket.sessionId];
+    var self = this;
+    for (var t in self.subscribes) {
+      var sub = self.subscribes[t];
+      if (sub.sessionId == socket.sessionId) {
+        delete self.subscribes[t];
+      }
+    }
   }
 
   function parseRequest(socket, data) {

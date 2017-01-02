@@ -1,0 +1,46 @@
+<html>
+<head>
+    <script type="application/javascript" src="../node_modules/stompjs/lib/stomp.js"></script>
+    <script type="application/javascript" src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+</head>
+<body>
+<pre id="test">
+
+</pre>
+<label for="topic">Topic</label><input type="text" id="topic" value="/test.sensor"/>
+<label for="sender">Sender</label><textarea id="sender"></textarea>
+<button onclick="send()">Send</button>
+<script type="application/javascript">
+  // var ws = new SockJS(url);
+  //var client = Stomp.over(ws);
+  var client = Stomp.client('ws://localhost:61614/stomp');
+  var headers = {
+    login: 'mylogin',
+    passcode: 'mypasscode',
+    // additional header
+    'client-id': 'webClient'
+  };
+  client.connect(headers, function (error) {
+    // display the error's message header:
+    if (error.command == "ERROR") {
+      console.error(error.headers.message);
+    } else {
+      console.log("Connected");
+      client.subscribe("/*", function (msg, t) {
+        console.log("Received", msg, t);
+      });
+    }
+  });
+  $(function () {
+    $("#test").html("Hello\n");
+
+    client.debug = function (data) {
+      $("#test").append(data + "\n");
+    };
+  });
+  function send() {
+    client.send($("#topic").val(), {}, $("#sender").val());
+  }
+</script>
+</body>
+</html>

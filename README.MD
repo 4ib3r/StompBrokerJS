@@ -21,6 +21,8 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 #Changelog
 * 0.1.0 First working version.
 * 0.1.1 Added wildcards to destination, change subscribe method [no backward compatibility]
+* 0.1.2 Bug fixes, changed websocket library, updated documentation.
+* 0.1.3 Unsubscribe on server, updated documentation, added events.
 
 #Example
 ```javascript
@@ -67,9 +69,13 @@ stompServer.send('/test', {}, 'testMsg');
 
 * [StompServer](#StompServer) ⇐ <code>EventEmitter</code>
     * [new StompServer(config)](#new_StompServer_new)
-    * [.subscribe(topic, callback)](#StompServer+subscribe) ⇒ <code>string</code>
-    * [.unsubscribe(id)](#StompServer+unsubscribe)
+    * [.subscribe(topic, [callback])](#StompServer+subscribe) ⇒ <code>string</code>
+    * [.unsubscribe(id)](#StompServer+unsubscribe) ⇒ <code>boolean</code>
     * [.send(topic, headers, body)](#StompServer+send)
+    * ["error"](#StompServer+event_error)
+    * ["connecting"](#StompServer+event_connecting)
+    * ["connected"](#StompServer+event_connected)
+    * ["disconnected"](#StompServer+event_disconnected)
 
 <a name="new_StompServer_new"></a>
 
@@ -81,23 +87,31 @@ stompServer.send('/test', {}, 'testMsg');
 
 <a name="StompServer+subscribe"></a>
 
-### stompServer.subscribe(topic, callback) ⇒ <code>string</code>
+### stompServer.subscribe(topic, [callback]) ⇒ <code>string</code>
 Subsribe topic
 
 **Kind**: instance method of <code>[StompServer](#StompServer)</code>  
-**Returns**: <code>string</code> - Subscription id  
+**Returns**: <code>string</code> - Subscription id, when message is received event with this id is emitted  
 
 | Param | Type | Description |
 | --- | --- | --- |
 | topic | <code>string</code> | Subscribed destination, wildcard is supported |
-| callback | <code>[OnSubscribedMessageCallback](#OnSubscribedMessageCallback)</code> | Callback function |
+| [callback] | <code>[OnSubscribedMessageCallback](#OnSubscribedMessageCallback)</code> | Callback function |
 
+**Example**  
+```js
+stompServer.subscribe("/test.data", function(msg, headers) {});
+//or alternative
+var subs_id = stompServer.subscribe("/test.data");
+stompServer.on(subs_id, function(msg, headers) {});
+```
 <a name="StompServer+unsubscribe"></a>
 
-### stompServer.unsubscribe(id)
+### stompServer.unsubscribe(id) ⇒ <code>boolean</code>
 Unsubscribe topic with subscription id
 
 **Kind**: instance method of <code>[StompServer](#StompServer)</code>  
+**Returns**: <code>boolean</code> - Subscription is deleted  
 
 | Param | Type | Description |
 | --- | --- | --- |
@@ -116,6 +130,49 @@ Send message to topic
 | headers | <code>object</code> | Message headers |
 | body | <code>string</code> | Message body |
 
+<a name="StompServer+event_error"></a>
+
+### "error"
+Client error event
+
+**Kind**: event emitted by <code>[StompServer](#StompServer)</code>  
+<a name="StompServer+event_connecting"></a>
+
+### "connecting"
+Client connecting event, emitted after socket is opened.
+
+**Kind**: event emitted by <code>[StompServer](#StompServer)</code>  
+**Properties**
+
+| Name | Type |
+| --- | --- |
+| sessionId | <code>string</code> | 
+
+<a name="StompServer+event_connected"></a>
+
+### "connected"
+Client connected event, emitted after connection established and negotiated
+
+**Kind**: event emitted by <code>[StompServer](#StompServer)</code>  
+**Properties**
+
+| Name | Type |
+| --- | --- |
+| sessionId | <code>string</code> | 
+| headers | <code>object</code> | 
+
+<a name="StompServer+event_disconnected"></a>
+
+### "disconnected"
+Client disconnected event
+
+**Kind**: event emitted by <code>[StompServer](#StompServer)</code>  
+**Properties**
+
+| Name | Type |
+| --- | --- |
+| sessionId | <code>string</code> | 
+
 <a name="ServerConfig"></a>
 
 ## ServerConfig : <code>object</code>
@@ -127,7 +184,7 @@ STOMP Server configuration
 | --- | --- | --- | --- |
 | server | <code>http.Server</code> |  | Http server reference |
 | [debug] | <code>function</code> | <code>function(args) {}</code> | Debug function |
-| [path] | <code>string</code> | <code>&quot;\&quot;/stomp\&quot;&quot;</code> | Websocket path |
+| [path] | <code>string</code> | <code>&quot;/stomp&quot;</code> | Websocket path |
 
 <a name="OnSubscribedMessageCallback"></a>
 
