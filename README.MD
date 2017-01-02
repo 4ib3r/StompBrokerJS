@@ -87,8 +87,8 @@ Subsribe topic
 
 | Param | Type | Description |
 | --- | --- | --- |
-| topic | <code>string</code> | subscribed destination, wildcard is supported |
-| callback | <code>[OnSubscribedMessageCallback](#OnSubscribedMessageCallback)</code> | callback function |
+| topic | <code>string</code> | Subscribed destination, wildcard is supported |
+| callback | <code>[OnSubscribedMessageCallback](#OnSubscribedMessageCallback)</code> | Callback function |
 
 <a name="StompServer+send"></a>
 
@@ -99,9 +99,9 @@ Send message to topic
 
 | Param | Type | Description |
 | --- | --- | --- |
-| topic | <code>string</code> | destination for message |
-| headers | <code>object</code> | message headers |
-| body | <code>string</code> |  |
+| topic | <code>string</code> | Destination for message |
+| headers | <code>object</code> | Message headers |
+| body | <code>string</code> | Message body |
 
 <a name="ServerConfig"></a>
 
@@ -110,10 +110,10 @@ STOMP Server configuration
 
 **Kind**: global typedef  
 
-| Param | Type | Description |
-| --- | --- | --- |
-| server | <code>Object</code> | = http server reference |
-| [config.debug] | <code>boolean</code> | enable debugging |
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| server | <code>Object</code> |  | Http server reference |
+| [debug] | <code>function</code> | <code>function(args) {}</code> | Debug function |
 
 <a name="OnSubscribedMessageCallback"></a>
 
@@ -127,7 +127,7 @@ Subscription callback method
 | msg | <code>string</code> | Message body |
 | headers | <code>object</code> | Message headers |
 | headers.destination | <code>string</code> | Message destination |
-| headers.subscription | <code>string</code> | id of subscription |
+| headers.subscription | <code>string</code> | Id of subscription |
 | headers.message-id | <code>string</code> | Id of message |
 | headers.content-type | <code>string</code> | Content type |
 | headers.content-length | <code>string</code> | Content length |

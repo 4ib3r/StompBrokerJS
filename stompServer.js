@@ -7,8 +7,8 @@ var util = require('util');
 /**
  * STOMP Server configuration
  * @typedef {Object} ServerConfig
- * @param {Object} server = http server reference
- * @param {boolean=} config.debug enable debugging
+ * @param {Object} server Http server reference
+ * @param {function} [debug=function(args) {}] Debug function
  * */
 
 
@@ -144,15 +144,15 @@ var StompServer = function (config) {
    * @param {string} msg Message body
    * @param {object} headers Message headers
    * @param {string} headers.destination Message destination
-   * @param {string} headers.subscription id of subscription
+   * @param {string} headers.subscription Id of subscription
    * @param {string} headers.message-id Id of message
    * @param {string} headers.content-type Content type
    * @param {string} headers.content-length Content length
    * */
 
   /** Subsribe topic
-   * @param {string} topic subscribed destination, wildcard is supported
-   * @param {OnSubscribedMessageCallback} callback callback function */
+   * @param {string} topic Subscribed destination, wildcard is supported
+   * @param {OnSubscribedMessageCallback} callback Callback function */
   this.subscribe = function(topic, callback) {
     var id = "self_" + Math.floor(Math.random() * 99999999999);
     this.subscribes.push({
@@ -173,9 +173,9 @@ var StompServer = function (config) {
   };
 
   /** Send message to topic
-   * @param {string} topic destination for message
-   * @param {object} headers message headers
-   * @param {string} body */
+   * @param {string} topic Destination for message
+   * @param {object} headers Message headers
+   * @param {string} body Message body */
   this.send = function(topic, headers, body) {
     var _headers = {};
     if (headers) {
