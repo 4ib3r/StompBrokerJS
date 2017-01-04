@@ -139,23 +139,45 @@ var StompServer = function (config) {
     }
   };
 
+  /**
+   * Client subscribe event, emitted when client subscribe topic
+   * @event StompServer#subscribe
+   * @type {object}
+   * @property {string} id Subscription id
+   * @property {string} sessionId Socket session id
+   * @property {string} topic Destination topic
+   * @property {string[]} tokens Tokenized topic
+   * @property {object} socket Connected socket
+   * */
   this.onSubscribe = function (socket, args) {
-    this.subscribes.push({
+    var sub = {
       id: args.id,
       sessionId: socket.sessionId,
       topic: args.dest,
       tokens: args.dest.substr(args.dest.indexOf('/') + 1).split("."),
       socket: socket
-    });
+    };
+    this.subscribes.push(sub);
+    this.emit("subscribe", sub);
     this.conf.debug("Server subscribe", args.id, args.dest);
     return true;
   };
-
+  /**
+   * Client subscribe event, emitted when client unsubscribe topic
+   * @event StompServer#unsubscribe
+   * @type {object}
+   * @property {string} id Subscription id
+   * @property {string} sessionId Socket session id
+   * @property {string} topic Destination topic
+   * @property {string[]} tokens Tokenized topic
+   * @property {object} socket Connected socket
+   * */
   this.onUnsubscribe = function (socket, subId) {
     for (var t in this.subscribes) {
       var sub = this.subscribes[t];
       if (sub.id == subId && sub.sessionId == socket.sessionId) {
         delete this.subscribes[t];
+        this.emit("unsubscribe", sub);
         return true;
       }
     }
@@ -202,13 +224,15 @@ var StompServer = function (config) {
    * */
   this.subscribe = function (topic, callback) {
     var id = "self_" + Math.floor(Math.random() * 99999999999);
-    this.subscribes.push({
+    var sub = {
       topic: topic,
       tokens: topic.substr(topic.indexOf('/') + 1).split("."),
       id: id,
       sessionId: "self_1234",
       socket: selfSocket(this, id)
-    });
+    };
+    this.subscribes.push(sub);
+    this.emit("subscribe", sub);
     if (callback) {
       this.on(id, callback);
     }
