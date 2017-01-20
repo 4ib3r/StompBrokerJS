@@ -27,7 +27,8 @@ var StompServer = function (config) {
   this.conf = {
     server: config.server,
     path: config.path || "/stomp",
-    debug: config.debug || function (args) {}
+    debug: config.debug || function (args) {
+    }
   };
   if (this.conf.server == undefined) {
     throw "Server is required";
@@ -103,14 +104,40 @@ var StompServer = function (config) {
     return true;
   };
 
+  /**
+   * Event emitted when broker send message to subscribers
+   * @event StompServer#send
+   * @type {object}
+   * @property {string} dest Destination
+   * @property {string} frame Message frame
+   * */
+
   this.onSend = function (socket, args, callback) {
+    var bodyObj = args.frame.body;
+    var frame = this.frameSerializer(args.frame);
+    var headers = { //default headers
+      'message-id': stomp.genId("msg"),
+      'content-type': 'text/plain'
+    };
+    if (frame.body != undefined) {
+      if (typeof frame.body != 'string')
+        throw "Message body is not string";
+      frame.headers["content-length"] = frame.body.length;
+    }
+    if (frame.headers) {
+      for (var key in frame.headers) {
+        headers[key] = frame.headers[key];
+      }
+    }
+    args.frame = frame;
+    this.emit('send', {frame: {headers: frame.headers, body: bodyObj}, dest: args.dest});
     for (var i in this.subscribes) {
-      var sub = this.subscribes[i]
+      var sub = this.subscribes[i];
       if (socket.sessionId == sub.sessionId) {
         continue;
       }
       //console.log(args.dest);
-      var tokens = args.dest.substr(args.dest.indexOf('/') + 1).split(".");
+      var tokens = stomp.StompUtils.tokenizeDestination(args.dest);
       var match = true;
       for (var t in tokens) {
         var token = tokens[t];
@@ -123,15 +150,14 @@ var StompServer = function (config) {
         }
       }
       if (match) {
+        frame.headers.subscription = sub.id;
+        frame.command = "MESSAGE";
         var sock = sub.socket;
-        stomp.StompUtils.sendCommand(sock, "MESSAGE", {
-          'subscription': sub.id,
-          'message-id': stomp.genId("msg"),
-          'destination': args.dest,
-          'topic': sub.topic,
-          'content-type': 'text/plain',
-          'content-length': args.frame.headers['content-length']
-        }, args.frame.body);
+        if (sock != undefined) {
+          stomp.StompUtils.sendFrame(sock, frame);
+        } else {
+          this.emit(sub.id, bodyObj, frame.headers);
+        }
       }
     }
     if (callback) {
@@ -154,7 +180,7 @@ var StompServer = function (config) {
       id: args.id,
       sessionId: socket.sessionId,
       topic: args.dest,
-      tokens: args.dest.substr(args.dest.indexOf('/') + 1).split("."),
+      tokens: stomp.StompUtils.tokenizeDestination(args.dest),
       socket: socket
     };
     this.subscribes.push(sub);
@@ -172,6 +198,8 @@ var StompServer = function (config) {
    * @property {string[]} tokens Tokenized topic
    * @property {object} socket Connected socket
    * */
+
+  /** @return {boolean} */
   this.onUnsubscribe = function (socket, subId) {
     for (var t in this.subscribes) {
       var sub = this.subscribes[t];
@@ -187,16 +215,9 @@ var StompServer = function (config) {
 
   /* ################ FUNCTIONS ################### */
 
-  function selfSocket(_this, subId) {
-    return {
-      rawFrame: true,
-      sessionId: "self_1234",
-      send: function (frame) {
-        var body = frame.body != undefined ? frame.body.toString() : '';
-        this.emit(subId, body, frame.headers);
-      }.bind(_this)
-    };
-  }
+  var selfSocket = {
+    sessionId: "self_1234"
+  };
 
 
   /**
@@ -226,10 +247,9 @@ var StompServer = function (config) {
     var id = "self_" + Math.floor(Math.random() * 99999999999);
     var sub = {
       topic: topic,
-      tokens: topic.substr(topic.indexOf('/') + 1).split("."),
+      tokens: stomp.StompUtils.tokenizeDestination(topic),
       id: id,
-      sessionId: "self_1234",
-      socket: selfSocket(this, id)
+      sessionId: "self_1234"
     };
     this.subscribes.push(sub);
     this.emit("subscribe", sub);
@@ -243,9 +263,9 @@ var StompServer = function (config) {
    * @param {string} id Subscription id
    * @return {boolean} Subscription is deleted
    * */
-  this.unsubscribe = function(id) {
+  this.unsubscribe = function (id) {
     this.removeAllListeners(id);
-    return this.onUnsubscribe(selfSocket(this, id), id);
+    return this.onUnsubscribe(selfSocket, id);
   };
 
   /** Send message to topic
@@ -259,19 +279,15 @@ var StompServer = function (config) {
         _headers[key] = headers[key];
       }
     }
-    if (body) {
-      if (typeof body != 'string')
-        body = body.toString();
-      _headers["content-length"] = body.length;
-    }
+    var frame = {
+      body: body,
+      headers: _headers
+    };
     var args = {
       dest: topic,
-      frame: {
-        body: body,
-        headers: _headers
-      }
+      frame: this.frameParser(frame)
     };
-    this.onSend(selfSocket(this, 'internal'), args);
+    this.onSend(selfSocket, args);
   };
 
   /* ############# END FUNCTIONS ###################### */
@@ -286,10 +302,38 @@ var StompServer = function (config) {
     }
   }
 
+  /**
+   * @typedef {object} MsgFrame
+   * Message frame
+   * */
+
+  /** Serialize frame to string for send
+   * @param {MsgFrame} frame Message frame
+   * @return {MsgFrame} modified frame
+   * */
+  this.frameSerializer = function (frame) {
+    if (frame.body != undefined && frame.headers['content-type'] == 'application/json') {
+      frame.body = JSON.stringify(frame.body)
+    }
+    return frame;
+  };
+
+  /** Parse frame to object for reading
+   * @param {MsgFrame} frame Message frame
+   * @return {MsgFrame} modified frame
+   * */
+  this.frameParser = function (frame) {
+    if (frame.body != undefined && frame.headers['content-type'] == 'application/json') {
+      frame.body = JSON.parse(frame.body);
+    }
+    return frame
+  };
+
   function parseRequest(socket, data) {
     var frame = stomp.StompUtils.parseFrame(data);
     var cmdFunc = this.frameHandler[frame.command];
     if (cmdFunc) {
+      frame = this.frameParser(frame);
       return cmdFunc(socket, frame);
     }
     return "Command not found";

@@ -10,6 +10,7 @@
 <label for="topic">Topic</label><input type="text" id="topic" value="/test.sensor"/>
 <label for="sender">Sender</label><textarea id="sender"></textarea>
 <button onclick="send()">Send</button>
+<button onclick="sendAsJson()">Send JSON</button>
 <script type="application/javascript">
   // var ws = new SockJS(url);
   //var client = Stomp.over(ws);
@@ -26,8 +27,12 @@
       console.error(error.headers.message);
     } else {
       console.log("Connected");
-      client.subscribe("/*", function (msg, t) {
-        console.log("Received", msg, t);
+      client.subscribe("/**", function (msg) {
+        var body = msg.body;
+        if (msg.headers['content-type'] == 'application/json') {
+          body = JSON.parse(msg.body)
+        }
+        $("#test").append("Received " + (typeof body) + " " + msg.body);
       });
     }
   });
@@ -40,6 +45,9 @@
   });
   function send() {
     client.send($("#topic").val(), {}, $("#sender").val());
+  }
+  function sendAsJson() {
+    client.send($("#topic").val(), {'content-type': 'application/json'}, JSON.stringify({text: $("#sender").val()}));
   }
 </script>
 </body>

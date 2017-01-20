@@ -1,4 +1,7 @@
+[![Known Vulnerabilities](https://snyk.io/test/github/4ib3r/stompbrokerjs/badge.svg)](https://snyk.io/test/github/4ib3r/stompbrokerjs)
+[![GitHub issues](https://img.shields.io/github/issues/4ib3r/StompBrokerJS.svg?style=flat-square)](https://github.com/4ib3r/StompBrokerJS/issues)
 # StompBrokerJS
+
 NodeJS StompBroker
 
 This is simple NodeJs STOMP 1.1 broker for embedded usage.
@@ -59,6 +62,9 @@ stompServer.send('/test', {}, 'testMsg');
 <dt><a href="#OnSubscribedMessageCallback">OnSubscribedMessageCallback</a> : <code>function</code></dt>
 <dd><p>Subscription callback method</p>
 </dd>
+<dt><a href="#MsgFrame">MsgFrame</a> : <code>object</code></dt>
+<dd><p>Message frame</p>
+</dd>
 </dl>
 
 <a name="StompServer"></a>
@@ -69,13 +75,19 @@ stompServer.send('/test', {}, 'testMsg');
 
 * [StompServer](#StompServer) ⇐ <code>EventEmitter</code>
     * [new StompServer(config)](#new_StompServer_new)
+    * [.onUnsubscribe()](#StompServer+onUnsubscribe) ⇒ <code>boolean</code>
     * [.subscribe(topic, [callback])](#StompServer+subscribe) ⇒ <code>string</code>
     * [.unsubscribe(id)](#StompServer+unsubscribe) ⇒ <code>boolean</code>
     * [.send(topic, headers, body)](#StompServer+send)
+    * [.frameSerializer(frame)](#StompServer+frameSerializer) ⇒ <code>[MsgFrame](#MsgFrame)</code>
+    * [.frameParser(frame)](#StompServer+frameParser) ⇒ <code>[MsgFrame](#MsgFrame)</code>
     * ["error"](#StompServer+event_error)
     * ["connecting"](#StompServer+event_connecting)
     * ["connected"](#StompServer+event_connected)
     * ["disconnected"](#StompServer+event_disconnected)
+    * ["send"](#StompServer+event_send)
+    * ["subscribe"](#StompServer+event_subscribe)
+    * ["unsubscribe"](#StompServer+event_unsubscribe)
 
 <a name="new_StompServer_new"></a>
 
@@ -85,6 +97,10 @@ stompServer.send('/test', {}, 'testMsg');
 | --- | --- | --- |
 | config | <code>[ServerConfig](#ServerConfig)</code> | Configuration for STOMP server |
 
+<a name="StompServer+onUnsubscribe"></a>
+
+### stompServer.onUnsubscribe() ⇒ <code>boolean</code>
+**Kind**: instance method of <code>[StompServer](#StompServer)</code>  
 <a name="StompServer+subscribe"></a>
 
 ### stompServer.subscribe(topic, [callback]) ⇒ <code>string</code>
@@ -130,6 +146,30 @@ Send message to topic
 | headers | <code>object</code> | Message headers |
 | body | <code>string</code> | Message body |
 
+<a name="StompServer+frameSerializer"></a>
+
+### stompServer.frameSerializer(frame) ⇒ <code>[MsgFrame](#MsgFrame)</code>
+Serialize frame to string for send
+
+**Kind**: instance method of <code>[StompServer](#StompServer)</code>  
+**Returns**: <code>[MsgFrame](#MsgFrame)</code> - modified frame  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| frame | <code>[MsgFrame](#MsgFrame)</code> | Message frame |
+
+<a name="StompServer+frameParser"></a>
+
+### stompServer.frameParser(frame) ⇒ <code>[MsgFrame](#MsgFrame)</code>
+Parse frame to object for reading
+
+**Kind**: instance method of <code>[StompServer](#StompServer)</code>  
+**Returns**: <code>[MsgFrame](#MsgFrame)</code> - modified frame  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| frame | <code>[MsgFrame](#MsgFrame)</code> | Message frame |
+
 <a name="StompServer+event_error"></a>
 
 ### "error"
@@ -173,6 +213,51 @@ Client disconnected event
 | --- | --- |
 | sessionId | <code>string</code> | 
 
+<a name="StompServer+event_send"></a>
+
+### "send"
+Event emitted when broker send message to subscribers
+
+**Kind**: event emitted by <code>[StompServer](#StompServer)</code>  
+**Properties**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| dest | <code>string</code> | Destination |
+| frame | <code>string</code> | Message frame |
+
+<a name="StompServer+event_subscribe"></a>
+
+### "subscribe"
+Client subscribe event, emitted when client subscribe topic
+
+**Kind**: event emitted by <code>[StompServer](#StompServer)</code>  
+**Properties**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| id | <code>string</code> | Subscription id |
+| sessionId | <code>string</code> | Socket session id |
+| topic | <code>string</code> | Destination topic |
+| tokens | <code>Array.&lt;string&gt;</code> | Tokenized topic |
+| socket | <code>object</code> | Connected socket |
+
+<a name="StompServer+event_unsubscribe"></a>
+
+### "unsubscribe"
+Client subscribe event, emitted when client unsubscribe topic
+
+**Kind**: event emitted by <code>[StompServer](#StompServer)</code>  
+**Properties**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| id | <code>string</code> | Subscription id |
+| sessionId | <code>string</code> | Socket session id |
+| topic | <code>string</code> | Destination topic |
+| tokens | <code>Array.&lt;string&gt;</code> | Tokenized topic |
+| socket | <code>object</code> | Connected socket |
+
 <a name="ServerConfig"></a>
 
 ## ServerConfig : <code>object</code>
@@ -203,3 +288,9 @@ Subscription callback method
 | headers.content-type | <code>string</code> | Content type |
 | headers.content-length | <code>string</code> | Content length |
 
+<a name="MsgFrame"></a>
+
+## MsgFrame : <code>object</code>
+Message frame
+
+**Kind**: global typedef  
