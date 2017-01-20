@@ -1,5 +1,8 @@
+[![Travis](https://img.shields.io/travis/4ib3r/StompBrokerJS.svg?style=flat-square)](https://travis-ci.org/4ib3r/StompBrokerJS)
 [![Known Vulnerabilities](https://snyk.io/test/github/4ib3r/stompbrokerjs/badge.svg)](https://snyk.io/test/github/4ib3r/stompbrokerjs)
-[![GitHub issues](https://img.shields.io/github/issues/4ib3r/StompBrokerJS.svg?style=flat-square)](https://github.com/4ib3r/StompBrokerJS/issues)
+[![bitHound](https://img.shields.io/bithound/dependencies/github/4ib3r/StompBrokerJS.svg?style=flat-square)](https://www.bithound.io/github/4ib3r/StompBrokerJS/master/dependencies/npm)
+[![bitHound](https://img.shields.io/bithound/code/github/4ib3r/StompBrokerJS.svg?style=flat-square)](https://www.bithound.io/github/4ib3r/StompBrokerJS)
+[![Beerpay](https://beerpay.io/4ib3r/StompBrokerJS/badge.svg?style=flat-square)](https://beerpay.io/4ib3r/StompBrokerJS)
 # StompBrokerJS
 
 NodeJS StompBroker
