@@ -97,7 +97,7 @@ var StompServer = function (config) {
    * @property {string} sessionId
    * */
   this.onDisconnect = function (socket, receiptId) {
-    this.connectionClose(socket).bind(this);
+    connectionClose(socket);
     this.conf.debug("DISCONNECT", socket.sessionId);
     this.emit('disconnected', socket.sessionId);
     this.conf.debug("DISCONNECT", socket.sessionId, receiptId);
@@ -219,7 +219,6 @@ var StompServer = function (config) {
     sessionId: "self_1234"
   };
 
-
   /**
    * Subscription callback method
    *
@@ -236,6 +235,7 @@ var StompServer = function (config) {
   /** Subsribe topic
    * @param {string} topic Subscribed destination, wildcard is supported
    * @param {OnSubscribedMessageCallback=} callback Callback function
+   * @param {object} headers Optional headers, used by client to provide a subscription ID (headers.id)
    * @return {string} Subscription id, when message is received event with this id is emitted
    * @example
    * stompServer.subscribe("/test.data", function(msg, headers) {});
@@ -243,8 +243,13 @@ var StompServer = function (config) {
    * var subs_id = stompServer.subscribe("/test.data");
    * stompServer.on(subs_id, function(msg, headers) {});
    * */
-  this.subscribe = function (topic, callback) {
-    var id = "self_" + Math.floor(Math.random() * 99999999999);
+  this.subscribe = function (topic, callback, headers) {
+    var id;
+    if (!headers || !headers.id) {
+      id = "self_" + Math.floor(Math.random() * 99999999999);
+    } else {
+      id = headers.id;
+    }
     var sub = {
       topic: topic,
       tokens: stomp.StompUtils.tokenizeDestination(topic),
