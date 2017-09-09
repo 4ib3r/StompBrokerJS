@@ -159,7 +159,7 @@ var StompServer = function (config) {
         if (sock !== undefined) {
           stomp.StompUtils.sendFrame(sock, args.frame);
         } else {
-          this.emit(sub.id, bodyObj, args.frame.headers);
+          this.emit(sub.id, args.frame.body, args.frame.headers);
         }
       }
     }
