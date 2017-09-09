@@ -120,7 +120,7 @@ var StompServer = function (config) {
     }
     args.frame = frame;
     this.emit('send', {frame: {headers: frame.headers, body: bodyObj}, dest: args.dest});
-    this._sendToSubscriptions(socket, frame);
+    this._sendToSubscriptions(socket, args);
     if (callback) {
       callback(true);
     }
@@ -130,10 +130,10 @@ var StompServer = function (config) {
    * Send message to matching subscribers.
    *
    * @param {object} websocket to send the message on
-   * @param {string} frame message frame
+   * @param {string} args onSend args
    * @private
    */
-  this._sendToSubscriptions = function (socket, frame) {
+  this._sendToSubscriptions = function (socket, args) {
     for (var i in this.subscribes) {
       var sub = this.subscribes[i];
       if (socket.sessionId === sub.sessionId) {
@@ -153,13 +153,13 @@ var StompServer = function (config) {
         }
       }
       if (match) {
-        frame.headers.subscription = sub.id;
-        frame.command = "MESSAGE";
+        args.frame.headers.subscription = sub.id;
+        args.frame.command = "MESSAGE";
         var sock = sub.socket;
         if (sock !== undefined) {
-          stomp.StompUtils.sendFrame(sock, frame);
+          stomp.StompUtils.sendFrame(sock, args.frame);
         } else {
-          this.emit(sub.id, bodyObj, frame.headers);
+          this.emit(sub.id, bodyObj, args.frame.headers);
         }
       }
     }
