@@ -21,7 +21,7 @@ var util = require('util');
  */
 var StompServer = function (config) {
   EventEmitter.call(this);
-  if (config == undefined) {
+  if (config === undefined) {
     config = {};
   }
   this.conf = {
@@ -30,7 +30,7 @@ var StompServer = function (config) {
     debug: config.debug || function (args) {
     }
   };
-  if (this.conf.server == undefined) {
+  if (this.conf.server === undefined) {
     throw "Server is required";
   }
 
@@ -44,16 +44,6 @@ var StompServer = function (config) {
     path: this.conf.path,
     perMessageDeflate: false
   });
-
-  /**
-   * Client error event
-   * @event StompServer#error
-   * @type {object}
-   * */
-  this.socket.on('error', function (err) {
-    this.conf.debug(err);
-    this.emit('error', err);
-  }.bind(this));
 
   /**
    * Client connecting event, emitted after socket is opened.
@@ -119,8 +109,8 @@ var StompServer = function (config) {
       'message-id': stomp.genId("msg"),
       'content-type': 'text/plain'
     };
-    if (frame.body != undefined) {
-      if (typeof frame.body != 'string')
+    if (frame.body !== undefined) {
+      if (typeof frame.body !== 'string')
         throw "Message body is not string";
       frame.headers["content-length"] = frame.body.length;
     }
@@ -133,7 +123,7 @@ var StompServer = function (config) {
     this.emit('send', {frame: {headers: frame.headers, body: bodyObj}, dest: args.dest});
     for (var i in this.subscribes) {
       var sub = this.subscribes[i];
-      if (socket.sessionId == sub.sessionId) {
+      if (socket.sessionId === sub.sessionId) {
         continue;
       }
       //console.log(args.dest);
@@ -141,11 +131,11 @@ var StompServer = function (config) {
       var match = true;
       for (var t in tokens) {
         var token = tokens[t];
-        if (sub.tokens[t] == undefined ||
-          (sub.tokens[t] != token && sub.tokens[t] != '*' && sub.tokens[t] != '**')) {
+        if (sub.tokens[t] === undefined ||
+          (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
           match = false;
           break;
-        } else if (sub.tokens[t] == "**") {
+        } else if (sub.tokens[t] === "**") {
           break;
         }
       }
@@ -153,7 +143,7 @@ var StompServer = function (config) {
         frame.headers.subscription = sub.id;
         frame.command = "MESSAGE";
         var sock = sub.socket;
-        if (sock != undefined) {
+        if (sock !== undefined) {
           stomp.StompUtils.sendFrame(sock, frame);
         } else {
           this.emit(sub.id, bodyObj, frame.headers);
@@ -203,7 +193,7 @@ var StompServer = function (config) {
   this.onUnsubscribe = function (socket, subId) {
     for (var t in this.subscribes) {
       var sub = this.subscribes[t];
-      if (sub.id == subId && sub.sessionId == socket.sessionId) {
+      if (sub.id === subId && sub.sessionId === socket.sessionId) {
         delete this.subscribes[t];
         this.emit("unsubscribe", sub);
         return true;
@@ -301,7 +291,7 @@ var StompServer = function (config) {
     var self = this;
     for (var t in self.subscribes) {
       var sub = self.subscribes[t];
-      if (sub.sessionId == socket.sessionId) {
+      if (sub.sessionId === socket.sessionId) {
         delete self.subscribes[t];
       }
     }
@@ -317,8 +307,8 @@ var StompServer = function (config) {
    * @return {MsgFrame} modified frame
    * */
   this.frameSerializer = function (frame) {
-    if (frame.body != undefined && frame.headers['content-type'] == 'application/json') {
-      frame.body = JSON.stringify(frame.body)
+    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json') {
+      frame.body = JSON.stringify(frame.body);
     }
     return frame;
   };
@@ -328,7 +318,7 @@ var StompServer = function (config) {
    * @return {MsgFrame} modified frame
    * */
   this.frameParser = function (frame) {
-    if (frame.body != undefined && frame.headers['content-type'] == 'application/json') {
+    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json') {
       frame.body = JSON.parse(frame.body);
     }
     return frame
