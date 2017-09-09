@@ -21,7 +21,7 @@ var util = require('util');
  */
 var StompServer = function (config) {
   EventEmitter.call(this);
-  if (config == undefined) {
+  if (config === undefined) {
     config = {};
   }
   this.conf = {
@@ -30,7 +30,7 @@ var StompServer = function (config) {
     debug: config.debug || function (args) {
     }
   };
-  if (this.conf.server == undefined) {
+  if (this.conf.server === undefined) {
     throw "Server is required";
   }
 
@@ -44,16 +44,6 @@ var StompServer = function (config) {
     path: this.conf.path,
     perMessageDeflate: false
   });
-
-  /**
-   * Client error event
-   * @event StompServer#error
-   * @type {object}
-   * */
-  this.socket.on('error', function (err) {
-    this.conf.debug(err);
-    this.emit('error', err);
-  }.bind(this));
 
   /**
    * Client connecting event, emitted after socket is opened.
@@ -97,7 +87,7 @@ var StompServer = function (config) {
    * @property {string} sessionId
    * */
   this.onDisconnect = function (socket, receiptId) {
-    this.connectionClose(socket).bind(this);
+    connectionClose(socket);
     this.conf.debug("DISCONNECT", socket.sessionId);
     this.emit('disconnected', socket.sessionId);
     this.conf.debug("DISCONNECT", socket.sessionId, receiptId);
@@ -111,7 +101,6 @@ var StompServer = function (config) {
    * @property {string} dest Destination
    * @property {string} frame Message frame
    * */
-
   this.onSend = function (socket, args, callback) {
     var bodyObj = args.frame.body;
     var frame = this.frameSerializer(args.frame);
@@ -119,8 +108,8 @@ var StompServer = function (config) {
       'message-id': stomp.genId("msg"),
       'content-type': 'text/plain'
     };
-    if (frame.body != undefined) {
-      if (typeof frame.body != 'string')
+    if (frame.body !== undefined) {
+      if (typeof frame.body !== 'string')
         throw "Message body is not string";
       frame.headers["content-length"] = frame.body.length;
     }
@@ -131,38 +120,62 @@ var StompServer = function (config) {
     }
     args.frame = frame;
     this.emit('send', {frame: {headers: frame.headers, body: bodyObj}, dest: args.dest});
-    for (var i in this.subscribes) {
-      var sub = this.subscribes[i];
-      if (socket.sessionId == sub.sessionId) {
-        continue;
-      }
-      //console.log(args.dest);
-      var tokens = stomp.StompUtils.tokenizeDestination(args.dest);
-      var match = true;
-      for (var t in tokens) {
-        var token = tokens[t];
-        if (sub.tokens[t] == undefined ||
-          (sub.tokens[t] != token && sub.tokens[t] != '*' && sub.tokens[t] != '**')) {
-          match = false;
-          break;
-        } else if (sub.tokens[t] == "**") {
-          break;
-        }
-      }
-      if (match) {
-        frame.headers.subscription = sub.id;
-        frame.command = "MESSAGE";
-        var sock = sub.socket;
-        if (sock != undefined) {
-          stomp.StompUtils.sendFrame(sock, frame);
-        } else {
-          this.emit(sub.id, bodyObj, frame.headers);
-        }
-      }
-    }
+    this._sendToSubscriptions(socket, args);
     if (callback) {
       callback(true);
     }
+  };
+
+  /**
+   * Send message to matching subscribers.
+   *
+   * @param {object} websocket to send the message on
+   * @param {string} args onSend args
+   * @private
+   */
+  this._sendToSubscriptions = function (socket, args) {
+    for (var i in this.subscribes) {
+      var sub = this.subscribes[i];
+      if (socket.sessionId === sub.sessionId) {
+        continue;
+      }
+      var match = this._checkSubMatchDest(sub, args);
+      if (match) {
+        args.frame.headers.subscription = sub.id;
+        args.frame.command = "MESSAGE";
+        var sock = sub.socket;
+        if (sock !== undefined) {
+          stomp.StompUtils.sendFrame(sock, args.frame);
+        } else {
+          this.emit(sub.id, args.frame.body, args.frame.headers);
+        }
+      }
+    }
+  };
+
+  /**
+   * Test if the input subscriber has subscribed to the target destination.
+   *
+   * @param sub the subscriber
+   * @param args onSend args
+   * @returns {boolean} true if the input subscription matches destination
+   * @private
+   */
+  this._checkSubMatchDest = function (sub, args) {
+    var match = true;
+    //console.log(args.dest);
+    var tokens = stomp.StompUtils.tokenizeDestination(args.dest);
+    for (var t in tokens) {
+      var token = tokens[t];
+      if (sub.tokens[t] === undefined ||
+        (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
+        match = false;
+        break;
+      } else if (sub.tokens[t] === "**") {
+        break;
+      }
+    }
+    return match;
   };
 
   /**
@@ -203,7 +216,7 @@ var StompServer = function (config) {
   this.onUnsubscribe = function (socket, subId) {
     for (var t in this.subscribes) {
       var sub = this.subscribes[t];
-      if (sub.id == subId && sub.sessionId == socket.sessionId) {
+      if (sub.id === subId && sub.sessionId === socket.sessionId) {
         delete this.subscribes[t];
         this.emit("unsubscribe", sub);
         return true;
@@ -218,7 +231,6 @@ var StompServer = function (config) {
   var selfSocket = {
     sessionId: "self_1234"
   };
-
 
   /**
    * Subscription callback method
@@ -236,6 +248,7 @@ var StompServer = function (config) {
   /** Subsribe topic
    * @param {string} topic Subscribed destination, wildcard is supported
    * @param {OnSubscribedMessageCallback=} callback Callback function
+   * @param {object} headers Optional headers, used by client to provide a subscription ID (headers.id)
    * @return {string} Subscription id, when message is received event with this id is emitted
    * @example
    * stompServer.subscribe("/test.data", function(msg, headers) {});
@@ -243,8 +256,13 @@ var StompServer = function (config) {
    * var subs_id = stompServer.subscribe("/test.data");
    * stompServer.on(subs_id, function(msg, headers) {});
    * */
-  this.subscribe = function (topic, callback) {
-    var id = "self_" + Math.floor(Math.random() * 99999999999);
+  this.subscribe = function (topic, callback, headers) {
+    var id;
+    if (!headers || !headers.id) {
+      id = "self_" + Math.floor(Math.random() * 99999999999);
+    } else {
+      id = headers.id;
+    }
     var sub = {
       topic: topic,
       tokens: stomp.StompUtils.tokenizeDestination(topic),
@@ -296,7 +314,7 @@ var StompServer = function (config) {
     var self = this;
     for (var t in self.subscribes) {
       var sub = self.subscribes[t];
-      if (sub.sessionId == socket.sessionId) {
+      if (sub.sessionId === socket.sessionId) {
         delete self.subscribes[t];
       }
     }
@@ -312,8 +330,8 @@ var StompServer = function (config) {
    * @return {MsgFrame} modified frame
    * */
   this.frameSerializer = function (frame) {
-    if (frame.body != undefined && frame.headers['content-type'] == 'application/json') {
-      frame.body = JSON.stringify(frame.body)
+    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json') {
+      frame.body = JSON.stringify(frame.body);
     }
     return frame;
   };
@@ -323,10 +341,10 @@ var StompServer = function (config) {
    * @return {MsgFrame} modified frame
    * */
   this.frameParser = function (frame) {
-    if (frame.body != undefined && frame.headers['content-type'] == 'application/json') {
+    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json') {
       frame.body = JSON.parse(frame.body);
     }
-    return frame
+    return frame;
   };
 
   function parseRequest(socket, data) {
