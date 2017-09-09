@@ -139,19 +139,7 @@ var StompServer = function (config) {
       if (socket.sessionId === sub.sessionId) {
         continue;
       }
-      //console.log(args.dest);
-      var tokens = stomp.StompUtils.tokenizeDestination(args.dest);
-      var match = true;
-      for (var t in tokens) {
-        var token = tokens[t];
-        if (sub.tokens[t] === undefined ||
-          (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
-          match = false;
-          break;
-        } else if (sub.tokens[t] === "**") {
-          break;
-        }
-      }
+      var match = this._checkSubMatchDest(sub, args)
       if (match) {
         args.frame.headers.subscription = sub.id;
         args.frame.command = "MESSAGE";
@@ -163,7 +151,32 @@ var StompServer = function (config) {
         }
       }
     }
-  }
+  };
+
+  /**
+   * Test if the input subscriber has subscribed to the target destination.
+   *
+   * @param sub the subscriber
+   * @param args onSend args
+   * @returns {boolean} true if the input subscription matches destination
+   * @private
+   */
+  this._checkSubMatchDest = function (sub, args) {
+    var match = true;
+    //console.log(args.dest);
+    var tokens = stomp.StompUtils.tokenizeDestination(args.dest);
+    for (var t in tokens) {
+      var token = tokens[t];
+      if (sub.tokens[t] === undefined ||
+        (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
+        match = false;
+        break;
+      } else if (sub.tokens[t] === "**") {
+        break;
+      }
+    }
+    return match;
+  };
 
   /**
    * Client subscribe event, emitted when client subscribe topic
