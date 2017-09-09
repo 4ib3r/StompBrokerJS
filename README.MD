@@ -43,7 +43,7 @@ server.listen(61614);
 stompServer.subscribe("/**", function(msg, headers) {
   var topic = headers.destination;
   console.log(topic, "->", msg);
-});
+}, headers);
 
 stompServer.send('/test', {}, 'testMsg');
 ```
@@ -79,7 +79,7 @@ stompServer.send('/test', {}, 'testMsg');
 * [StompServer](#StompServer) ⇐ <code>EventEmitter</code>
     * [new StompServer(config)](#new_StompServer_new)
     * [.onUnsubscribe()](#StompServer+onUnsubscribe) ⇒ <code>boolean</code>
-    * [.subscribe(topic, [callback])](#StompServer+subscribe) ⇒ <code>string</code>
+    * [.subscribe(topic, [callback], headers)](#StompServer+subscribe) ⇒ <code>string</code>
     * [.unsubscribe(id)](#StompServer+unsubscribe) ⇒ <code>boolean</code>
     * [.send(topic, headers, body)](#StompServer+send)
     * [.frameSerializer(frame)](#StompServer+frameSerializer) ⇒ <code>[MsgFrame](#MsgFrame)</code>
@@ -106,7 +106,7 @@ stompServer.send('/test', {}, 'testMsg');
 **Kind**: instance method of <code>[StompServer](#StompServer)</code>  
 <a name="StompServer+subscribe"></a>
 
-### stompServer.subscribe(topic, [callback]) ⇒ <code>string</code>
+### stompServer.subscribe(topic, [callback], headers) ⇒ <code>string</code>
 Subsribe topic
 
 **Kind**: instance method of <code>[StompServer](#StompServer)</code>  
@@ -116,10 +116,11 @@ Subsribe topic
 | --- | --- | --- |
 | topic | <code>string</code> | Subscribed destination, wildcard is supported |
 | [callback] | <code>[OnSubscribedMessageCallback](#OnSubscribedMessageCallback)</code> | Callback function |
+| headers | <code>object</code> | Optional headers, used by client to provide a subscription ID (headers.id) |
 
 **Example**  
 ```js
-stompServer.subscribe("/test.data", function(msg, headers) {});
+stompServer.subscribe("/test.data", function(msg, headers) {}, headers);
 //or alternative
 var subs_id = stompServer.subscribe("/test.data");
 stompServer.on(subs_id, function(msg, headers) {});
