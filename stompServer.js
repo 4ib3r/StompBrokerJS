@@ -101,7 +101,6 @@ var StompServer = function (config) {
    * @property {string} dest Destination
    * @property {string} frame Message frame
    * */
-
   this.onSend = function (socket, args, callback) {
     var bodyObj = args.frame.body;
     var frame = this.frameSerializer(args.frame);
@@ -121,6 +120,20 @@ var StompServer = function (config) {
     }
     args.frame = frame;
     this.emit('send', {frame: {headers: frame.headers, body: bodyObj}, dest: args.dest});
+    this._sendToSubscriptions(socket, frame);
+    if (callback) {
+      callback(true);
+    }
+  };
+
+  /**
+   * Send message to matching subscribers.
+   *
+   * @param {object} websocket to send the message on
+   * @param {string} frame message frame
+   * @private
+   */
+  this._sendToSubscriptions = function (socket, frame) {
     for (var i in this.subscribes) {
       var sub = this.subscribes[i];
       if (socket.sessionId === sub.sessionId) {
@@ -150,10 +163,7 @@ var StompServer = function (config) {
         }
       }
     }
-    if (callback) {
-      callback(true);
-    }
-  };
+  }
 
   /**
    * Client subscribe event, emitted when client subscribe topic
@@ -321,7 +331,7 @@ var StompServer = function (config) {
     if (frame.body !== undefined && frame.headers['content-type'] === 'application/json') {
       frame.body = JSON.parse(frame.body);
     }
-    return frame
+    return frame;
   };
 
   function parseRequest(socket, data) {
