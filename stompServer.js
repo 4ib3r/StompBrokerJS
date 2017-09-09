@@ -139,7 +139,7 @@ var StompServer = function (config) {
       if (socket.sessionId === sub.sessionId) {
         continue;
       }
-      var match = this._checkSubMatchDest(sub, args)
+      var match = this._checkSubMatchDest(sub, args);
       if (match) {
         args.frame.headers.subscription = sub.id;
         args.frame.command = "MESSAGE";
