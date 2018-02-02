@@ -1,4 +1,5 @@
 var stomp = require('./lib/stomp');
+var StompUtils = require('./lib/stomp-utils');
 var http = require("http");
 var WebSocketServer = require('ws').Server;
 var EventEmitter = require('events');
@@ -26,7 +27,7 @@ var StompServer = function (config) {
   }
   this.conf = {
     server: config.server,
-    serverName: config.serverName || "STOMP-JS/0.0.1",
+    serverName: config.serverName || "STOMP-JS/0.1.4",
     path: config.path || "/stomp",
     debug: config.debug || function (args) {
     }
@@ -53,7 +54,7 @@ var StompServer = function (config) {
    * @property {string} sessionId
    * */
   this.socket.on('connection', function (webSocket) {
-    webSocket.sessionId = stomp.StompUtils.genId();
+    webSocket.sessionId = StompUtils.genId();
     this.emit('connecting', webSocket.sessionId);
     this.conf.debug("Connect", webSocket.sessionId);
     webSocket.on('message', parseRequest.bind(this, webSocket));
@@ -106,7 +107,7 @@ var StompServer = function (config) {
     var bodyObj = args.frame.body;
     var frame = this.frameSerializer(args.frame);
     var headers = { //default headers
-      'message-id': stomp.genId("msg"),
+      'message-id': StompUtils.genId("msg"),
       'content-type': 'text/plain'
     };
     if (frame.body !== undefined) {
@@ -132,7 +133,7 @@ var StompServer = function (config) {
   /**
    * Send message to matching subscribers.
    *
-   * @param {object} websocket to send the message on
+   * @param {object} socket websocket to send the message on
    * @param {string} args onSend args
    * @private
    */
@@ -148,7 +149,7 @@ var StompServer = function (config) {
         args.frame.command = "MESSAGE";
         var sock = sub.socket;
         if (sock !== undefined) {
-          stomp.StompUtils.sendFrame(sock, args.frame);
+          StompUtils.sendFrame(sock, args.frame);
         } else {
           this.emit(sub.id, args.frame.body, args.frame.headers);
         }
@@ -167,7 +168,7 @@ var StompServer = function (config) {
   this._checkSubMatchDest = function (sub, args) {
     var match = true;
     //console.log(args.dest);
-    var tokens = stomp.StompUtils.tokenizeDestination(args.dest);
+    var tokens = StompUtils.tokenizeDestination(args.dest);
     for (var t in tokens) {
       var token = tokens[t];
       if (sub.tokens[t] === undefined ||
@@ -196,7 +197,7 @@ var StompServer = function (config) {
       id: args.id,
       sessionId: socket.sessionId,
       topic: args.dest,
-      tokens: stomp.StompUtils.tokenizeDestination(args.dest),
+      tokens: StompUtils.tokenizeDestination(args.dest),
       socket: socket
     };
     this.subscribes.push(sub);
@@ -268,7 +269,7 @@ var StompServer = function (config) {
     }
     var sub = {
       topic: topic,
-      tokens: stomp.StompUtils.tokenizeDestination(topic),
+      tokens: StompUtils.tokenizeDestination(topic),
       id: id,
       sessionId: "self_1234"
     };
@@ -351,7 +352,7 @@ var StompServer = function (config) {
   };
 
   function parseRequest(socket, data) {
-    var frame = stomp.StompUtils.parseFrame(data);
+    var frame = StompUtils.parseFrame(data);
     var cmdFunc = this.frameHandler[frame.command];
     if (cmdFunc) {
       frame = this.frameParser(frame);
