@@ -27,7 +27,7 @@ var StompServer = function (config) {
   }
   this.conf = {
     server: config.server,
-    serverName: config.serverName || "STOMP-JS/0.1.4",
+    serverName: config.serverName || "STOMP-JS/1.1.2",
     path: config.path || "/stomp",
     debug: config.debug || function (args) {
     }
