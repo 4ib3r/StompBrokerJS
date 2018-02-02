@@ -29,8 +29,8 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 * 0.1.0 First working version.
 * 0.1.1 Added wildcards to destination, change subscribe method [no backward compatibility]
 * 0.1.2 Bug fixes, changed websocket library, updated documentation.
-* 0.1.3 Unsubscribe on server, updated documentation, added events.
-* 0.1.4 Binary data sending, updated documentation, allowed server name modification.
+* 1.1.1 Unsubscribe on server, updated documentation, added events.
+* 1.1.2 Binary data sending, updated documentation, allowed server name modification.
 
 #Example
 ```javascript
@@ -274,7 +274,7 @@ STOMP Server configuration
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
 | server | <code>http.Server</code> |  | Http server reference |
-| [serverName] | <code>string</code> | <code>&quot;STOMP-JS/0.1.4&quot;</code> | Websocket server name |
+| [serverName] | <code>string</code> | <code>&quot;STOMP-JS/1.1.2&quot;</code> | Websocket server name |
 | [debug] | <code>function</code> | <code>function(args) {}</code> | Debug function |
 | [path] | <code>string</code> | <code>&quot;/stomp&quot;</code> | Websocket path |
 
