@@ -1,5 +1,5 @@
 var http = require("http");
-var StompServer = require('../stompServer');
+var StompServer = require('stomp-broker-js');
 
 var server = http.createServer();
 var stompServer = new StompServer({server: server});
