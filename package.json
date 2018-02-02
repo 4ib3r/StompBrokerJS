@@ -23,11 +23,11 @@
   },
   "homepage": "https://github.com/4ib3r/StompBrokerJS#readme",
   "dependencies": {
-    "ws": "^3.1.0"
+    "ws": "^4.0.0"
   },
   "devDependencies": {
     "chai": "^4.1.2",
-    "mocha": "^4.0.1",
+    "mocha": "^4.1.0",
     "stompjs": "^2.3.3"
   }
 }
