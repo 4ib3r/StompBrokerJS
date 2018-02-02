@@ -3,6 +3,7 @@
 [![bitHound](https://img.shields.io/bithound/dependencies/github/4ib3r/StompBrokerJS.svg?style=flat-square)](https://www.bithound.io/github/4ib3r/StompBrokerJS/master/dependencies/npm)
 [![bitHound](https://img.shields.io/bithound/code/github/4ib3r/StompBrokerJS.svg?style=flat-square)](https://www.bithound.io/github/4ib3r/StompBrokerJS)
 [![Beerpay](https://beerpay.io/4ib3r/StompBrokerJS/badge.svg?style=flat-square)](https://beerpay.io/4ib3r/StompBrokerJS)
+[![Paypal](https://www.paypalobjects.com/webstatic/en_US/i/buttons/PP_logo_h_100x26.png)](https://www.paypal.com/pools/c/81vjT1yxR4)
 # StompBrokerJS
 
 NodeJS StompBroker
@@ -29,6 +30,7 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 * 0.1.1 Added wildcards to destination, change subscribe method [no backward compatibility]
 * 0.1.2 Bug fixes, changed websocket library, updated documentation.
 * 0.1.3 Unsubscribe on server, updated documentation, added events.
+* 0.1.4 Binary data sending, updated documentation, allowed server name modification.
 
 #Example
 ```javascript
@@ -148,7 +150,7 @@ Send message to topic
 | --- | --- | --- |
 | topic | <code>string</code> | Destination for message |
 | headers | <code>object</code> | Message headers |
-| body | <code>string</code> | Message body |
+| body | <code>string</code> | Message body, can be Buffer object |
 
 <a name="StompServer+frameSerializer"></a>
 
@@ -272,7 +274,7 @@ STOMP Server configuration
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
 | server | <code>http.Server</code> |  | Http server reference |
-| [serverName] | <code>string</code> | <code>&quot;STOMP-JS/0.0.1&quot;</code> | Websocket server name |
+| [serverName] | <code>string</code> | <code>&quot;STOMP-JS/0.1.4&quot;</code> | Websocket server name |
 | [debug] | <code>function</code> | <code>function(args) {}</code> | Debug function |
 | [path] | <code>string</code> | <code>&quot;/stomp&quot;</code> | Websocket path |
 
