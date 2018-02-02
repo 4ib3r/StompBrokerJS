@@ -109,7 +109,9 @@ var StompServer = function (config) {
       'content-type': 'text/plain'
     };
     if (frame.body !== undefined) {
-      if (typeof frame.body !== 'string')
+      if (typeof frame.body !== 'string' &&
+        !(typeof frame.body === 'object' && frame.body instanceof Buffer)
+      )
         throw "Message body is not string";
       frame.headers["content-length"] = frame.body.length;
     }
