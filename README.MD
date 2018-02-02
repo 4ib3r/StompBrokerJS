@@ -16,7 +16,7 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
     * \* is used to mach any name in a path
     * \*\* is used to recursively match path names
 
-#TODO
+# TODO
 * Authorization
 * Heartbeat
 * Acknowledgment
@@ -25,17 +25,17 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 * Composite Destinations
 * Message selectors
 
-#Changelog
+# Changelog
 * 0.1.0 First working version.
 * 0.1.1 Added wildcards to destination, change subscribe method [no backward compatibility]
 * 0.1.2 Bug fixes, changed websocket library, updated documentation.
 * 1.1.1 Unsubscribe on server, updated documentation, added events.
 * 1.1.2 Binary data sending, updated documentation, allowed server name modification.
 
-#Example
+# Example
 ```javascript
 var http = require("http");
-var StompServer = require('stompServer');
+var StompServer = require('stomp-broker-js');
 
 var server = http.createServer();
 var stompServer = new StompServer({server: server});
