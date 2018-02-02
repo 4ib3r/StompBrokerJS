@@ -272,6 +272,7 @@ STOMP Server configuration
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
 | server | <code>http.Server</code> |  | Http server reference |
+| [serverName] | <code>string</code> | <code>&quot;STOMP-JS/0.0.1&quot;</code> | Websocket server name |
 | [debug] | <code>function</code> | <code>function(args) {}</code> | Debug function |
 | [path] | <code>string</code> | <code>&quot;/stomp&quot;</code> | Websocket path |
 
