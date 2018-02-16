@@ -7,6 +7,8 @@ var Stomp           = require('./lib/stomp');
 var StompUtils      = require('./lib/stomp-utils');
 var Bytes           = require('./lib/bytes');
 
+var protocolAdapter = require('./lib/adapter');
+
 const VERSION = require('./package.json').version;
 
 
@@ -45,8 +47,8 @@ var StompServer = function (config) {
     heartbeat: config.heartbeat || [10000, 10000],
     heartbeatErrorMargin: config.heartbeatErrorMargin || 1000,
     debug: config.debug || function (args) {
-      // console.log(arguments);
-    }
+    },
+    protocol: config.protocol || 'ws'
   };
   
   if (this.conf.server === undefined) {
@@ -54,14 +56,13 @@ var StompServer = function (config) {
   }
 
   this.subscribes = [];
-  this.frameHandler = new Stomp.FrameHandler(this);
-  
-  this.socket = new WebSocketServer({
-    server: this.conf.server,
-    path: this.conf.path,
-    perMessageDeflate: false
-  });
+  this.frameHandler = new stomp.FrameHandler(this);
 
+  this.socket = new protocolAdapter[this.conf.protocol]({
+      server: this.conf.server,
+      path: this.conf.path,
+      perMessageDeflate: false
+    });
   /**
    * Client connecting event, emitted after socket is opened.
    *
@@ -104,7 +105,6 @@ var StompServer = function (config) {
     return true;
   };
 
-
   /**
    * Client disconnected event
    *
@@ -116,9 +116,8 @@ var StompServer = function (config) {
     this.afterConnectionClose(socket);
     this.conf.debug('DISCONNECT', socket.sessionId);
     this.emit('disconnected', socket.sessionId);
-    this.conf.debug('DISCONNECT', socket.sessionId, receiptId);
     return true;
-  };
+  }.bind(this);
 
 
   /**
@@ -342,7 +341,7 @@ var StompServer = function (config) {
       frame: this.frameParser(frame)
     };
     this.onSend(selfSocket, args);
-  };
+  }.bind(this);
 
   //</editor-fold>
 
