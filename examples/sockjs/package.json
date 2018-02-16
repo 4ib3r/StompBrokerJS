@@ -1,0 +1,13 @@
+{
+    "dependencies": {
+        "node-static": "^0.7.10",
+        "stomp-broker-js": "file:../../"
+    },
+    "scripts": {
+        "start": "node server.js",
+        "start-dev": "nodemon server.js"
+    },
+    "devDependencies": {
+        "nodemon": "^1.15.1"
+    }
+}
