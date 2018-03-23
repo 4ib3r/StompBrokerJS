@@ -52,6 +52,8 @@ var StompServer = function (config) {
     client: 0,
     server: 0
   };
+
+  this.activeWebSocket = null;
   
   this.socket = new WebSocketServer({
     server: this.conf.server,
@@ -67,7 +69,9 @@ var StompServer = function (config) {
    * @property {string} sessionId
    */
   this.socket.on('connection', function (ws) {
+    this.activeWebSocket = ws;
     ws.sessionId = StompUtils.genId();
+
     this.emit('connecting', ws.sessionId);
     this.conf.debug('Connect', ws.sessionId);
 
