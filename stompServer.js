@@ -1,6 +1,6 @@
 var stomp = require('./lib/stomp');
 var StompUtils = require('./lib/stomp-utils');
-var http = require("http");
+var http = require('http');
 var WebSocketServer = require('ws').Server;
 var EventEmitter = require('events');
 var util = require('util');
@@ -27,13 +27,13 @@ var StompServer = function (config) {
   }
   this.conf = {
     server: config.server,
-    serverName: config.serverName || "STOMP-JS/1.1.2",
-    path: config.path || "/stomp",
+    serverName: config.serverName || 'STOMP-JS/1.1.2',
+    path: config.path || '/stomp',
     debug: config.debug || function (args) {
     }
   };
   if (this.conf.server === undefined) {
-    throw "Server is required";
+    throw 'Server is required';
   }
 
   this.subscribes = [];
@@ -56,7 +56,7 @@ var StompServer = function (config) {
   this.socket.on('connection', function (webSocket) {
     webSocket.sessionId = StompUtils.genId();
     this.emit('connecting', webSocket.sessionId);
-    this.conf.debug("Connect", webSocket.sessionId);
+    this.conf.debug('Connect', webSocket.sessionId);
     webSocket.on('message', parseRequest.bind(this, webSocket));
     webSocket.on('close', connectionClose.bind(this, webSocket));
     webSocket.on('error', function (err) {
@@ -76,7 +76,7 @@ var StompServer = function (config) {
    * */
   this.onClientConnected = function (socket, args) {
     socket.clientHeartBeat = {client: args.hearBeat[0], server: args.hearBeat[1]};
-    this.conf.debug("CONNECT", socket.sessionId, socket.clientHeartBeat, args.headers);
+    this.conf.debug('CONNECT', socket.sessionId, socket.clientHeartBeat, args.headers);
     this.emit('connected', socket.sessionId, args.headers);
     return true;
   };
@@ -90,9 +90,9 @@ var StompServer = function (config) {
    * */
   this.onDisconnect = function (socket, receiptId) {
     connectionClose(socket);
-    this.conf.debug("DISCONNECT", socket.sessionId);
+    this.conf.debug('DISCONNECT', socket.sessionId);
     this.emit('disconnected', socket.sessionId);
-    this.conf.debug("DISCONNECT", socket.sessionId, receiptId);
+    this.conf.debug('DISCONNECT', socket.sessionId, receiptId);
     return true;
   };
 
@@ -107,15 +107,15 @@ var StompServer = function (config) {
     var bodyObj = args.frame.body;
     var frame = this.frameSerializer(args.frame);
     var headers = { //default headers
-      'message-id': StompUtils.genId("msg"),
+      'message-id': StompUtils.genId('msg'),
       'content-type': 'text/plain'
     };
     if (frame.body !== undefined) {
       if (typeof frame.body !== 'string' &&
         !(typeof frame.body === 'object' && frame.body instanceof Buffer)
       )
-        throw "Message body is not string";
-      frame.headers["content-length"] = frame.body.length;
+        throw 'Message body is not string';
+      frame.headers['content-length'] = frame.body.length;
     }
     if (frame.headers) {
       for (var key in frame.headers) {
@@ -146,7 +146,7 @@ var StompServer = function (config) {
       var match = this._checkSubMatchDest(sub, args);
       if (match) {
         args.frame.headers.subscription = sub.id;
-        args.frame.command = "MESSAGE";
+        args.frame.command = 'MESSAGE';
         var sock = sub.socket;
         if (sock !== undefined) {
           StompUtils.sendFrame(sock, args.frame);
@@ -175,7 +175,7 @@ var StompServer = function (config) {
         (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
         match = false;
         break;
-      } else if (sub.tokens[t] === "**") {
+      } else if (sub.tokens[t] === '**') {
         break;
       }
     }
@@ -201,8 +201,8 @@ var StompServer = function (config) {
       socket: socket
     };
     this.subscribes.push(sub);
-    this.emit("subscribe", sub);
-    this.conf.debug("Server subscribe", args.id, args.dest);
+    this.emit('subscribe', sub);
+    this.conf.debug('Server subscribe', args.id, args.dest);
     return true;
   };
   /**
@@ -222,7 +222,7 @@ var StompServer = function (config) {
       var sub = this.subscribes[t];
       if (sub.id === subId && sub.sessionId === socket.sessionId) {
         delete this.subscribes[t];
-        this.emit("unsubscribe", sub);
+        this.emit('unsubscribe', sub);
         return true;
       }
     }
@@ -233,7 +233,7 @@ var StompServer = function (config) {
   /* ################ FUNCTIONS ################### */
 
   var selfSocket = {
-    sessionId: "self_1234"
+    sessionId: 'self_1234'
   };
 
   /**
@@ -255,15 +255,15 @@ var StompServer = function (config) {
    * @param {object} headers Optional headers, used by client to provide a subscription ID (headers.id)
    * @return {string} Subscription id, when message is received event with this id is emitted
    * @example
-   * stompServer.subscribe("/test.data", function(msg, headers) {});
+   * stompServer.subscribe('/test.data', function(msg, headers) {});
    * //or alternative
-   * var subs_id = stompServer.subscribe("/test.data");
+   * var subs_id = stompServer.subscribe('/test.data');
    * stompServer.on(subs_id, function(msg, headers) {});
    * */
   this.subscribe = function (topic, callback, headers) {
     var id;
     if (!headers || !headers.id) {
-      id = "self_" + Math.floor(Math.random() * 99999999999);
+      id = 'self_' + Math.floor(Math.random() * 99999999999);
     } else {
       id = headers.id;
     }
@@ -271,10 +271,10 @@ var StompServer = function (config) {
       topic: topic,
       tokens: StompUtils.tokenizeDestination(topic),
       id: id,
-      sessionId: "self_1234"
+      sessionId: 'self_1234'
     };
     this.subscribes.push(sub);
-    this.emit("subscribe", sub);
+    this.emit('subscribe', sub);
     if (callback) {
       this.on(id, callback);
     }
@@ -358,7 +358,7 @@ var StompServer = function (config) {
       frame = this.frameParser(frame);
       return cmdFunc(socket, frame);
     }
-    return "Command not found";
+    return 'Command not found';
   }
 
 };
