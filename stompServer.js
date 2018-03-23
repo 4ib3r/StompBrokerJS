@@ -39,6 +39,7 @@ var StompServer = function (config) {
     serverName: config.serverName || 'STOMP-JS/' + VERSION,
     path: config.path || '/stomp',
     debug: config.debug || function (args) {
+      //console.log(arguments);
     }
   };
   
@@ -95,11 +96,11 @@ var StompServer = function (config) {
    * @property {object} headers
    */
   this.onClientConnected = function (socket, args) {
-    socket.clientHeartBeat = {
-      client: args.hearBeat[0],
-      server: args.hearBeat[1]
+    socket.clientHeartbeat = {
+      client: args.heartbeat[0],
+      server: args.heartbeat[1]
     };
-    this.conf.debug('CONNECT', socket.sessionId, socket.clientHeartBeat, args.headers);
+    this.conf.debug('CONNECT', socket.sessionId, socket.clientHeartbeat, args.headers);
     this.emit('connected', socket.sessionId, args.headers);
     return true;
   };
