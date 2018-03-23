@@ -6,6 +6,8 @@ var util            = require('util');
 var Stomp           = require('./lib/stomp');
 var StompUtils      = require('./lib/stomp-utils');
 
+const VERSION = require('./package.json').version;
+
 
 /**
  * STOMP Server configuration
@@ -34,7 +36,7 @@ var StompServer = function (config) {
   
   this.conf = {
     server: config.server,
-    serverName: config.serverName || 'STOMP-JS/1.1.2',
+    serverName: config.serverName || 'STOMP-JS/' + VERSION,
     path: config.path || '/stomp',
     debug: config.debug || function (args) {
     }
