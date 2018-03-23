@@ -30,7 +30,7 @@ const VERSION = require('./package.json').version;
 var StompServer = function (config) {
   EventEmitter.call(this);
 
-  if (config === undefined) {
+  if (config == null) {
     config = {};
   }
   
@@ -42,7 +42,7 @@ var StompServer = function (config) {
     }
   };
   
-  if (this.conf.server === undefined) {
+  if (this.conf.server == null) {
     throw 'Server is required';
   }
 
@@ -391,8 +391,7 @@ var StompServer = function (config) {
     var tokens = StompUtils.tokenizeDestination(args.dest);
     for (var t in tokens) {
       var token = tokens[t];
-      if (sub.tokens[t] === undefined ||
-        (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
+      if (sub.tokens[t] == null || (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
         match = false;
         break;
       } else if (sub.tokens[t] === '**') {
