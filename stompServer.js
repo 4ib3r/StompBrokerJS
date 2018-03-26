@@ -479,10 +479,15 @@ var StompServer = function (config) {
 
   this.parseRequest = function(socket, data) {
     // check if it's incoming heartbeat
-    if (socket.heartbeatClock !== undefined && data === Bytes.LF) {
-      this.conf.debug('PONG');
+    if (socket.heartbeatClock !== undefined) {
+      // beat
       socket.heartbeatTime = Date.now();
-      return;
+
+      // if it's ping then ignore
+      if(data === Bytes.LF) {
+        this.conf.debug('PONG');
+        return;
+      }
     }
 
     // normal data
