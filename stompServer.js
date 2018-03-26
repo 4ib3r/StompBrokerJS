@@ -15,10 +15,11 @@ const VERSION = require('./package.json').version;
  *
  * @typedef {object} ServerConfig
  * @param {http.Server} server Http server reference
- * @param {function} [debug=function(args) {}] Debug function
- * @param {string} [path=/stomp] WebSocket path
  * @param {string} [serverName=STOMP-JS/VERSION] Name of STOMP server
- * @param {number} [heartbeat=[10000, 10000]] Heart-beat; read documentation to config according to your desire
+ * @param {string} [path=/stomp] WebSocket path
+ * @param {array} [heartbeat=[10000, 10000]] Heartbeat; read documentation to config according to your desire
+ * @param {number} [heartbeatErrorMargin=1000] Heartbeat error margin; specify how strict server should be
+ * @param {function} [debug=function(args) {}] Debug function
  */
 
 
@@ -33,7 +34,7 @@ const VERSION = require('./package.json').version;
 var StompServer = function (config) {
   EventEmitter.call(this);
 
-  if (config == null) {
+  if (config === undefined) {
     config = {};
   }
   
@@ -42,12 +43,13 @@ var StompServer = function (config) {
     serverName: config.serverName || 'STOMP-JS/' + VERSION,
     path: config.path || '/stomp',
     heartbeat: config.heartbeat || [10000, 10000],
+    heartbeatErrorMargin: config.heartbeatErrorMargin || 1000,
     debug: config.debug || function (args) {
       // console.log(arguments);
     }
   };
   
-  if (this.conf.server == null) {
+  if (this.conf.server === undefined) {
     throw 'Server is required';
   }
 
@@ -238,7 +240,6 @@ var StompServer = function (config) {
    * @param {string} headers.content-type Content type
    * @param {string} headers.content-length Content length
    */
-  // TODO: Create this method or remove above comment
 
 
   /**
@@ -378,7 +379,7 @@ var StompServer = function (config) {
   //</editor-fold>
 
 
-  //<editor-fold defaultstate="collapsed" desc="Send">
+  //<editor-fold defaultstate="collapsed" desc="Heartbeat">
 
   /**
    * Heart-beat: Turn On for given socket
@@ -403,17 +404,17 @@ var StompServer = function (config) {
     } else {
       // Client takes responsibility for sending pings
       // Server should close connection on timeout
-      socket.heartbeatTime = Date.now();
+      socket.heartbeatTime = Date.now() + interval;
       socket.heartbeatClock = setInterval(function() {
         var diff = Date.now() - socket.heartbeatTime;
-        if (diff > interval) {
+        if (diff > interval + self.conf.heartbeatErrorMargin) {
           self.conf.debug('HEALTH CHECK failed! Closing', diff, interval);
           socket.close();
         } else {
           self.conf.debug('HEALTH CHECK ok!', diff, interval);
+          socket.heartbeatTime -= diff;
         }
-      }, interval * 2 + 1); // give it a nice margin of error
-
+      }, interval);
     }
   };
 
@@ -424,7 +425,7 @@ var StompServer = function (config) {
    * @param {WebSocket} socket Destination WebSocket
    * */
   this.heartbeatOff = function (socket) {
-    if(socket.heartbeatClock != null) {
+    if(socket.heartbeatClock !== undefined) {
       clearInterval(socket.heartbeatClock);
       delete socket.heartbeatClock;
     }
@@ -443,11 +444,10 @@ var StompServer = function (config) {
    */
   this._checkSubMatchDest = function (sub, args) {
     var match = true;
-    //console.log(args.dest);
     var tokens = StompUtils.tokenizeDestination(args.dest);
     for (var t in tokens) {
       var token = tokens[t];
-      if (sub.tokens[t] == null || (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
+      if (sub.tokens[t] === undefined || (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
         match = false;
         break;
       } else if (sub.tokens[t] === '**') {
@@ -479,7 +479,7 @@ var StompServer = function (config) {
 
   this.parseRequest = function(socket, data) {
     // check if it's incoming heartbeat
-    if (socket.heartbeatClock != null && data === Bytes.LF) {
+    if (socket.heartbeatClock !== undefined && data === Bytes.LF) {
       this.conf.debug('PONG');
       socket.heartbeatTime = Date.now();
       return;
@@ -494,7 +494,7 @@ var StompServer = function (config) {
     }
 
     return 'Command not found';
-  }
+  };
 
 };
 

@@ -1,12 +1,6 @@
 # IDE
 *.iml
 .idea/*
-!.idea/StompBrokerJS.iml
-!.idea/codeStyleSettings.xml
-!.idea/file.template.settings.xml
-!.idea/modules.xml
-!.idea/misc.xml
-!.idea/encodings.xml
 .vimrc
 
 # Directories
