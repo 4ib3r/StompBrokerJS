@@ -1,3 +1,14 @@
-.idea/
+# IDE
+*.iml
+.idea/*
+.vimrc
+
+# Directories
 node_modules/
-template.md
+
+# Lock files
+package-lock.json
+
+# OS files
+.DS_Store
+**/Thumbs.db
