@@ -1,4 +1,20 @@
-.idea/
-node_modules/
-template.md
+# IDE
+*.iml
+.idea/*
+.vimrc
+.vscode/*
+
 *.log
+
+# Directories
+node_modules/
+
+# Lock files
+package-lock.json
+
+# OS files
+.DS_Store
+**/Thumbs.db
+
+#template for documentation
+template.md
