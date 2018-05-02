@@ -54,6 +54,7 @@ var StompServer = function (config) {
   }
 
   this.subscribes = [];
+  this.middleware = {};
   this.frameHandler = new Stomp.FrameHandler(this);
   
   this.socket = new WebSocketServer({
@@ -86,6 +87,42 @@ var StompServer = function (config) {
 
   //<editor-fold defaultstate="collapsed" desc="Events">
 
+  this.addMiddleware = function (command, handler) {
+    command = command.toLowerCase();
+    if (! this.middleware[command] ) {
+      this.middleware[command] = [];
+    }
+    this.middleware[command].push(handler);
+  };
+
+
+  this.removeMiddleware = function (command, handler) {
+    var handlers = this.middleware[command.toLowerCase()];
+    var idx = handlers.indexOf(handler);
+    if (idx >= 0) {
+      handlers.splice(idx, 1);
+    }
+  };
+
+
+  function withMiddleware(command, finalHandler) {
+    return function(socket, args) {
+      var handlers = this.middleware[command.toLowerCase()] || [];
+      var iter = handlers[Symbol.iterator]();
+      var self = this;
+
+      function callNext() {
+        var iteration = iter.next();
+        if (iteration.done) {
+          return finalHandler.call(self, socket, args);
+        }
+        return iteration.value(socket, args, callNext);
+      }
+      return callNext();
+    };
+  }
+
+
   /**
    * Client connected event, emitted after connection established and negotiated
    *
@@ -94,7 +131,7 @@ var StompServer = function (config) {
    * @property {string} sessionId
    * @property {object} headers
    */
-  this.onClientConnected = function (socket, args) {
+  this.onClientConnected = withMiddleware('connect', function (socket, args) {
     socket.clientHeartbeat = {
       client: args.heartbeat[0],
       server: args.heartbeat[1]
@@ -102,7 +139,7 @@ var StompServer = function (config) {
     this.conf.debug('CONNECT', socket.sessionId, socket.clientHeartbeat, args.headers);
     this.emit('connected', socket.sessionId, args.headers);
     return true;
-  };
+  });
 
 
   /**
@@ -111,14 +148,14 @@ var StompServer = function (config) {
    * @event StompServer#disconnected
    * @type {object}
    * @property {string} sessionId
-   */
-  this.onDisconnect = function (socket, receiptId) {
+   * */
+  this.onDisconnect = withMiddleware('disconnect', function (socket, receiptId) {
     this.afterConnectionClose(socket);
     this.conf.debug('DISCONNECT', socket.sessionId);
     this.emit('disconnected', socket.sessionId);
     this.conf.debug('DISCONNECT', socket.sessionId, receiptId);
     return true;
-  };
+  });
 
 
   /**
@@ -129,7 +166,7 @@ var StompServer = function (config) {
    * @property {string} dest Destination
    * @property {string} frame Message frame
    */
-  this.onSend = function (socket, args, callback) {
+  this.onSend = withMiddleware('send', function (socket, args, callback) {
     var bodyObj = args.frame.body;
     var frame = this.frameSerializer(args.frame);
     var headers = {
@@ -165,7 +202,8 @@ var StompServer = function (config) {
     if (callback) {
       callback(true);
     }
-  };
+    return true;
+  });
 
 
   /**
@@ -179,7 +217,7 @@ var StompServer = function (config) {
    * @property {string[]} tokens Tokenized topic
    * @property {object} socket Connected socket
    */
-  this.onSubscribe = function (socket, args) {
+  this.onSubscribe = withMiddleware('subscribe', function (socket, args) {
     var sub = {
       id: args.id,
       sessionId: socket.sessionId,
@@ -191,7 +229,7 @@ var StompServer = function (config) {
     this.emit('subscribe', sub);
     this.conf.debug('Server subscribe', args.id, args.dest);
     return true;
-  };
+  });
 
 
   /**
@@ -206,7 +244,7 @@ var StompServer = function (config) {
    * @property {object} socket Connected socket
    * @return {boolean}
    */
-  this.onUnsubscribe = function (socket, subId) {
+  this.onUnsubscribe = withMiddleware('unsubscribe', function (socket, subId) {
     for (var t in this.subscribes) {
       var sub = this.subscribes[t];
       if (sub.id === subId && sub.sessionId === socket.sessionId) {
@@ -216,7 +254,7 @@ var StompServer = function (config) {
       }
     }
     return false;
-  };
+  });
 
   //</editor-fold>
 
