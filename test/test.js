@@ -105,7 +105,7 @@ testCase('StompServer', function() {
       function onRawMessage(msg) {
         assert.instanceOf(msg, ArrayBuffer);
         var text = Buffer.from(msg).toString();
-        assert.match(text, /\n\nbinary body\0$/);
+        assert.match(text, /^MESSAGE(.|\n)*\n\nbinary body\0$/);
         done();
       }
       stompServer.on('subscribe', function() {
