@@ -3,12 +3,12 @@ var WebSocketServer = require('ws').Server;
 var EventEmitter    = require('events');
 var util            = require('util');
 
-var Stomp           = require('./lib/stomp');
-var StompUtils      = require('./lib/stomp-utils');
-var Bytes           = require('./lib/bytes');
+var stomp           = require('./lib/stomp');
+var stompUtils      = require('./lib/stomp-utils');
+var BYTES           = require('./lib/bytes');
 
-const VERSION = require('./package.json').version;
-
+var protocolAdapter = require('./lib/adapter');
+var buildConfig     = require('./lib/config');
 
 /**
  * STOMP Server configuration
@@ -38,31 +38,17 @@ var StompServer = function (config) {
     config = {};
   }
   
-  this.conf = {
-    server: config.server,
-    serverName: config.serverName || 'STOMP-JS/' + VERSION,
-    path: config.path || '/stomp',
-    heartbeat: config.heartbeat || [10000, 10000],
-    heartbeatErrorMargin: config.heartbeatErrorMargin || 1000,
-    debug: config.debug || function (args) {
-      // console.log(arguments);
-    }
-  };
-  
-  if (this.conf.server === undefined) {
-    throw 'Server is required';
-  }
+  this.conf = buildConfig(config);  
 
   this.subscribes = [];
   this.middleware = {};
   this.frameHandler = new Stomp.FrameHandler(this);
-  
-  this.socket = new WebSocketServer({
-    server: this.conf.server,
-    path: this.conf.path,
-    perMessageDeflate: false
-  });
 
+  this.socket = new protocolAdapter[this.conf.protocol]({
+      server: this.conf.server,
+      path: this.conf.path,
+      perMessageDeflate: false
+    });
   /**
    * Client connecting event, emitted after socket is opened.
    *
@@ -71,7 +57,7 @@ var StompServer = function (config) {
    * @property {string} sessionId
    */
   this.socket.on('connection', function (ws) {
-    ws.sessionId = StompUtils.genId();
+    ws.sessionId = stompUtils.genId();
 
     this.emit('connecting', ws.sessionId);
     this.conf.debug('Connect', ws.sessionId);
@@ -141,7 +127,6 @@ var StompServer = function (config) {
     return true;
   });
 
-
   /**
    * Client disconnected event
    *
@@ -153,9 +138,8 @@ var StompServer = function (config) {
     this.afterConnectionClose(socket);
     this.conf.debug('DISCONNECT', socket.sessionId);
     this.emit('disconnected', socket.sessionId);
-    this.conf.debug('DISCONNECT', socket.sessionId, receiptId);
     return true;
-  });
+  }.bind(this);
 
 
   /**
@@ -171,12 +155,12 @@ var StompServer = function (config) {
     var frame = this.frameSerializer(args.frame);
     var headers = {
       //default headers
-      'message-id': StompUtils.genId('msg'),
+      'message-id': stompUtils.genId('msg'),
       'content-type': 'text/plain'
     };
 
     if (frame.body !== undefined) {
-      if (typeof frame.body !== 'string' && !(typeof frame.body === 'object' && frame.body instanceof Buffer)) {
+      if (typeof frame.body !== 'string' && !Buffer.isBuffer(frame.body)) {
         throw 'Message body is not string';
       }
       frame.headers['content-length'] = frame.body.length;
@@ -222,7 +206,7 @@ var StompServer = function (config) {
       id: args.id,
       sessionId: socket.sessionId,
       topic: args.dest,
-      tokens: StompUtils.tokenizeDestination(args.dest),
+      tokens: stompUtils.tokenizeDestination(args.dest),
       socket: socket
     };
     this.subscribes.push(sub);
@@ -302,7 +286,7 @@ var StompServer = function (config) {
     }
     var sub = {
       topic: topic,
-      tokens: StompUtils.tokenizeDestination(topic),
+      tokens: stompUtils.tokenizeDestination(topic),
       id: id,
       sessionId: 'self_1234'
     };
@@ -349,7 +333,7 @@ var StompServer = function (config) {
         args.frame.command = 'MESSAGE';
         var sock = sub.socket;
         if (sock !== undefined) {
-          StompUtils.sendFrame(sock, args.frame);
+          stompUtils.sendFrame(sock, args.frame);
         } else {
           this.emit(sub.id, args.frame.body, args.frame.headers);
         }
@@ -380,7 +364,7 @@ var StompServer = function (config) {
       frame: this.frameParser(frame)
     };
     this.onSend(selfSocket, args);
-  };
+  }.bind(this);
 
   //</editor-fold>
 
@@ -394,7 +378,7 @@ var StompServer = function (config) {
    * @return {MsgFrame} modified frame
    * */
   this.frameSerializer = function (frame) {
-    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json') {
+    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json' && !Buffer.isBuffer(frame.body)) {
       frame.body = JSON.stringify(frame.body);
     }
     return frame;
@@ -435,7 +419,7 @@ var StompServer = function (config) {
       socket.heartbeatClock = setInterval(function() {
         if(socket.readyState == 1) {
           self.conf.debug('PING');
-          socket.send(Bytes.LF);
+          socket.send(BYTES.LF);
         }
       }, interval);
 
@@ -482,7 +466,7 @@ var StompServer = function (config) {
    */
   this._checkSubMatchDest = function (sub, args) {
     var match = true;
-    var tokens = StompUtils.tokenizeDestination(args.dest);
+    var tokens = stompUtils.tokenizeDestination(args.dest);
     for (var t in tokens) {
       var token = tokens[t];
       if (sub.tokens[t] === undefined || (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
@@ -522,14 +506,14 @@ var StompServer = function (config) {
       socket.heartbeatTime = Date.now();
 
       // if it's ping then ignore
-      if(data === Bytes.LF) {
+      if(data === BYTES.LF) {
         this.conf.debug('PONG');
         return;
       }
     }
 
     // normal data
-    var frame = StompUtils.parseFrame(data);
+    var frame = stompUtils.parseFrame(data);
     var cmdFunc = this.frameHandler[frame.command];
     if (cmdFunc) {
       frame = this.frameParser(frame);
