@@ -123,7 +123,7 @@ var StompServer = function (config) {
     };
 
     if (frame.body !== undefined) {
-      if (typeof frame.body !== 'string' && !(typeof frame.body === 'object' && frame.body instanceof Buffer)) {
+      if (typeof frame.body !== 'string' && !Buffer.isBuffer(frame.body)) {
         throw 'Message body is not string';
       }
       frame.headers['content-length'] = frame.body.length;
@@ -340,7 +340,7 @@ var StompServer = function (config) {
    * @return {MsgFrame} modified frame
    * */
   this.frameSerializer = function (frame) {
-    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json') {
+    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json' && !Buffer.isBuffer(frame.body)) {
       frame.body = JSON.stringify(frame.body);
     }
     return frame;
