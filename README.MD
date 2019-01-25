@@ -44,8 +44,8 @@ server.listen(61614);
 
 stompServer.subscribe("/**", function(msg, headers) {
   var topic = headers.destination;
-  console.log(topic, "->", msg);
-}, headers);
+  console.log(topic, "->", msg, headers);
+});
 
 stompServer.send('/test', {}, 'testMsg');
 ```
