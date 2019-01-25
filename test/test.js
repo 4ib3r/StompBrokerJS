@@ -1,5 +1,6 @@
 var http = require("http");
 var StompServer = require('../stompServer');
+var WebSocket = require('ws');
 var stompjs = require('stompjs');
 
 var testCase = require('mocha').describe;
@@ -14,6 +15,7 @@ var should = require('mocha').should;
 var server;
 var stompServer;
 
+var socket;
 var client;
 
 testCase('StompServer', function() {
@@ -24,7 +26,8 @@ testCase('StompServer', function() {
       server.listen(61614, function(err) {
         assert.ifError(err);
         console.log("Server listen");
-        client = stompjs.overWS('ws://localhost:61614/stomp');
+        socket = new WebSocket('ws://localhost:61614/stomp');
+        client = stompjs.over(socket);
         client.connect({
           login: 'mylogin',
           passcode: 'mypasscode',
@@ -94,6 +97,23 @@ testCase('StompServer', function() {
         done(new Error("incorrect subscription executed"));
       }, headers);
       client.send('/ok', {}, 'test body');
+    });
+  });
+
+  testCase('#subscribe', function() {
+    assertions('check binary data delivery', function(done) {
+      function onRawMessage(msg) {
+        assert.instanceOf(msg, ArrayBuffer);
+        var text = Buffer.from(msg).toString();
+        assert.match(text, /^MESSAGE(.|\n)*\n\nbinary body\0$/);
+        done();
+      }
+      stompServer.on('subscribe', function() {
+        var data = Buffer.from('binary body');
+        socket.once('message', onRawMessage);
+        stompServer.send('/data', {'content-type': 'application/octet-stream'}, data);
+      });
+      client.subscribe("/data");
     });
   });
 
