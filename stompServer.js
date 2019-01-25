@@ -139,7 +139,7 @@ var StompServer = function (config) {
     this.conf.debug('DISCONNECT', socket.sessionId);
     this.emit('disconnected', socket.sessionId);
     return true;
-  }.bind(this);
+  });
 
 
   /**
