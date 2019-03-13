@@ -4,6 +4,7 @@
   "description": "Simple STOMP 1.1 Broker for nodejs http applications.",
   "main": "stompServer.js",
   "scripts": {
+    "lint": "eslint stompServer.js lib",
     "test": "mocha"
   },
   "repository": {
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "chai": "^4.1.2",
+    "eslint": "^5.15.1",
     "mocha": "^5.1.1",
     "stompjs": "^2.3.3"
   }
