@@ -1,5 +1,3 @@
-var http            = require('http');
-var WebSocketServer = require('ws').Server;
 var EventEmitter    = require('events');
 var util            = require('util');
 
@@ -26,9 +24,9 @@ var buildConfig     = require('./lib/config');
 /**
  * @class
  * @augments EventEmitter
- * 
+ *
  * Create Stomp server with config
- * 
+ *
  * @param {ServerConfig} config Configuration for STOMP server
  */
 var StompServer = function (config) {
@@ -37,12 +35,12 @@ var StompServer = function (config) {
   if (config === undefined) {
     config = {};
   }
-  
-  this.conf = buildConfig(config);  
+
+  this.conf = buildConfig(config);
 
   this.subscribes = [];
   this.middleware = {};
-  this.frameHandler = new Stomp.FrameHandler(this);
+  this.frameHandler = new stomp.FrameHandler(this);
 
   this.socket = new protocolAdapter[this.conf.protocol]({
       server: this.conf.server,
@@ -134,7 +132,8 @@ var StompServer = function (config) {
    * @type {object}
    * @property {string} sessionId
    * */
-  this.onDisconnect = withMiddleware('disconnect', function (socket, receiptId) {
+  this.onDisconnect = withMiddleware('disconnect', function (socket /*, receiptId*/) {
+    // TODO: Do we need to do anything with receiptId on disconnect?
     this.afterConnectionClose(socket);
     this.conf.debug('DISCONNECT', socket.sessionId);
     this.emit('disconnected', socket.sessionId);
