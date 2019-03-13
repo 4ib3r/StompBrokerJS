@@ -4,6 +4,8 @@
   "description": "Simple STOMP 1.1 Broker for nodejs http applications.",
   "main": "stompServer.js",
   "scripts": {
+    "preversion": "npm run lint && npm run test",
+    "prepublishOnly": "npm run lint && npm run test",
     "lint": "eslint stompServer.js lib",
     "test": "mocha"
   },
