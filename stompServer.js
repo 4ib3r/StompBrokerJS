@@ -20,6 +20,11 @@ var buildConfig     = require('./lib/config');
  * @param {function} [debug=function(args) {}] Debug function
  */
 
+/**
+ * @typedef MsgFrame Message frame object
+ * @property {string|Buffer} body Message body, string or Buffer
+ * @property {object} headers Message headers
+ */
 
 /**
  * @class
@@ -71,6 +76,11 @@ var StompServer = function (config) {
 
   //<editor-fold defaultstate="collapsed" desc="Events">
 
+  /**
+   *  Add middle-ware for specific command
+   *  @param {('connect'|'disconnect'|'send'|'subscribe'|'unsubscribe')} command Command to hook
+   *  @param {function} handler function to add in middle-ware
+   * */
   this.addMiddleware = function (command, handler) {
     command = command.toLowerCase();
     if (! this.middleware[command] ) {
@@ -79,7 +89,21 @@ var StompServer = function (config) {
     this.middleware[command].push(handler);
   };
 
+  /**
+   *  Clear and set middle-ware for specific command
+   *  @param {('connect'|'disconnect'|'send'|'subscribe'|'unsubscribe')} command Command to hook
+   *  @param {function} handler function to add in middle-ware
+   * */
+  this.setMiddleware = function (command, handler) {
+    command = command.toLowerCase();
+    this.middleware[command] = [handler];
+  };
 
+  /**
+   *  Remove middle-ware specific for command
+   *  @param {('connect'|'disconnect'|'send'|'subscribe'|'unsubscribe')} command Command with hook
+   *  @param {function} handler function to remove from middle-ware
+   * */
   this.removeMiddleware = function (command, handler) {
     var handlers = this.middleware[command.toLowerCase()];
     var idx = handlers.indexOf(handler);
@@ -103,7 +127,7 @@ var StompServer = function (config) {
         return iteration.value(socket, args, callNext);
       }
       return callNext();
-    };
+    }.bind(this);
   }
 
 
@@ -344,7 +368,7 @@ var StompServer = function (config) {
   /** Send message to topic
    *
    * @param {string} topic Destination for message
-   * @param {object} headers Message headers
+   * @param {Object.<string, string>} headers Message headers
    * @param {string} body Message body
    */
   this.send = function (topic, headers, body) {
@@ -416,7 +440,7 @@ var StompServer = function (config) {
       // Server takes responsibility for sending pings
       // Client should close connection on timeout
       socket.heartbeatClock = setInterval(function() {
-        if(socket.readyState == 1) {
+        if(socket.readyState === 1) {
           self.conf.debug('PING');
           socket.send(BYTES.LF);
         }

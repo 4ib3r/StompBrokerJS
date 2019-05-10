@@ -3,13 +3,7 @@ var StompServer = require('../stompServer');
 var WebSocket = require('ws');
 var stompjs = require('stompjs');
 
-var testCase = require('mocha').describe;
-var before = require('mocha').before;
-var beforeEach = require('mocha').beforeEach;
-var after = require('mocha').after;
-var assertions = require('mocha').it;
 var assert = require('chai').assert;
-var should = require('mocha').should;
 
 
 var server;
@@ -18,7 +12,7 @@ var stompServer;
 var socket;
 var client;
 
-testCase('StompServer', function() {
+describe('StompServer', function() {
 
   beforeEach(function(done) {
       server = http.createServer();
@@ -34,7 +28,7 @@ testCase('StompServer', function() {
           'client-id': 'my-client-id'
         }, function (error) {
           // display the error's message header:
-          if (error.command == "ERROR") {
+          if (error.command === "ERROR") {
             console.error(error.headers.message);
             done(error);
           } else {
@@ -53,8 +47,8 @@ testCase('StompServer', function() {
     });
   });
 
-  testCase('#send', function() {
-    assertions('check msg and topic wildcard subscription', function(done) {
+  describe('#send', function() {
+    it('check msg and topic wildcard subscription', function(done) {
       var headers = {'id': 'sub-0'};
       stompServer.subscribe("/**", function(msg, headers) {
         var topic = headers.destination;
@@ -65,7 +59,7 @@ testCase('StompServer', function() {
       client.send('/data', {}, 'test body');
     });
 
-    assertions('sub-topic wildcard subscription', function(done) {
+    it('sub-topic wildcard subscription', function(done) {
       var msgCnt = 0;
       var timer = null;
       function check() {
@@ -85,7 +79,7 @@ testCase('StompServer', function() {
       client.send('data.t1', {}, 'fail');
     });
 
-    assertions('specific topic subscription', function(done) {
+    it('specific topic subscription', function(done) {
       var headers = {};
       stompServer.subscribe("/ok", function(msg, headers) {
         var topic = headers.destination;
@@ -100,8 +94,8 @@ testCase('StompServer', function() {
     });
   });
 
-  testCase('#subscribe', function() {
-    assertions('check binary data delivery', function(done) {
+  describe('#subscribe', function() {
+    it('check binary data delivery', function(done) {
       function onRawMessage(msg) {
         assert.instanceOf(msg, ArrayBuffer);
         var text = Buffer.from(msg).toString();
@@ -117,8 +111,8 @@ testCase('StompServer', function() {
     });
   });
 
-  testCase('#unsubscribe', function() {
-    assertions('check topic unsubscribe', function(done) {
+  describe('#unsubscribe', function() {
+    it('check topic unsubscribe', function(done) {
       var isSubscribed = true;
       var subId = stompServer.subscribe("/**", function(msg, headers) {
         assert.equal(headers.destination, '/test');
