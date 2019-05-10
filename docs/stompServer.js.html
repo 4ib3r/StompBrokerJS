@@ -2,22 +2,35 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Source: stompServer.js</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>stompServer.js - Documentation</title>
 
-    <script src="scripts/prettify/prettify.js"> </script>
-    <script src="scripts/prettify/lang-css.js"> </script>
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
     <!--[if lt IE 9]>
       <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
+    <link type="text/css" rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
     <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
     <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
 </head>
-
 <body>
 
-<div id="main">
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
 
-    <h1 class="page-title">Source: stompServer.js</h1>
+<label for="nav-trigger" class="overlay"></label>
+
+<nav>
+    <li class="nav-link nav-home-link"><a href="index.html">Home</a></li><li class="nav-heading">Classes</li><li class="nav-heading"><span class="nav-item-type type-class">C</span><span class="nav-item-name"><a href="StompServer.html">StompServer</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#_checkSubMatchDest">_checkSubMatchDest</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#_sendToSubscriptions">_sendToSubscriptions</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#addMiddleware">addMiddleware</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#afterConnectionClose">afterConnectionClose</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#frameParser">frameParser</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#frameSerializer">frameSerializer</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#heartbeatOff">heartbeatOff</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#heartbeatOn">heartbeatOn</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#removeMiddleware">removeMiddleware</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#setMiddleware">setMiddleware</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#subscribe">subscribe</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#unsubscribe">unsubscribe</a></span></li><li class="nav-heading">Events</li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:connected">connected</a></span></li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:connecting">connecting</a></span></li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:disconnected">disconnected</a></span></li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:send">send</a></span></li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:subscribe">subscribe</a></span></li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:unsubscribe">unsubscribe</a></span></li><li class="nav-heading"><a href="global.html">Globals</a></li>
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">stompServer.js</h1>
+    
 
     
 
@@ -468,7 +481,7 @@ var StompServer = function (config) {
       // Server takes responsibility for sending pings
       // Client should close connection on timeout
       socket.heartbeatClock = setInterval(function() {
-        if(socket.readyState == 1) {
+        if(socket.readyState === 1) {
           self.conf.debug('PING');
           socket.send(BYTES.LF);
         }
@@ -589,17 +602,13 @@ module.exports = StompServer;
 
 </div>
 
-<nav>
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="StompServer.html">StompServer</a></li></ul><h3>Events</h3><ul><li><a href="StompServer.html#event:connected">connected</a></li><li><a href="StompServer.html#event:connecting">connecting</a></li><li><a href="StompServer.html#event:disconnected">disconnected</a></li><li><a href="StompServer.html#event:send">send</a></li><li><a href="StompServer.html#event:subscribe">subscribe</a></li><li><a href="StompServer.html#event:unsubscribe">unsubscribe</a></li></ul><h3><a href="global.html">Global</a></h3>
-</nav>
-
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.1</a> on Fri May 10 2019 11:24:40 GMT+0200 (CEST)
+    Generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.1</a> on Fri May 10 2019 11:42:45 GMT+0200 (CEST) using the Minami theme.
 </footer>
 
-<script> prettyPrint(); </script>
-<script src="scripts/linenumber.js"> </script>
+<script>prettyPrint();</script>
+<script src="scripts/linenumber.js"></script>
 </body>
 </html>

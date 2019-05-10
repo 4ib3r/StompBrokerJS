@@ -127,7 +127,7 @@ var StompServer = function (config) {
         return iteration.value(socket, args, callNext);
       }
       return callNext();
-    }.bind(this);
+    };
   }
 
 

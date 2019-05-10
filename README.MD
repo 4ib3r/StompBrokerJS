@@ -11,7 +11,6 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 
 # TODO
 * Authorization
-* Heartbeat
 * Acknowledgment
 * Async send messages
 * Transactions
@@ -41,3 +40,5 @@ stompServer.subscribe("/**", function(msg, headers) {
 
 stompServer.send('/test', {}, 'testMsg');
 ```
+# Documentation
+<https://4ib3r.github.io/StompBrokerJS/>
