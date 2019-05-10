@@ -28,7 +28,7 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 # Example
 ```javascript
 var http = require("http");
-var StompServer = require('stompServer');
+var StompServer = require('stomp-broker-js');
 
 var server = http.createServer();
 var stompServer = new StompServer({server: server});
