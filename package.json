@@ -4,7 +4,7 @@
   "description": "Simple STOMP 1.1 Broker for nodejs http applications.",
   "main": "stompServer.js",
   "scripts": {
-    "jsdoc": "jsdoc -d ./docs -R README.MD stompServer.js",
+    "jsdoc": "jsdoc -c ./jsdoc-conf.json",
     "preversion": "npm run lint && npm run test",
     "prepublishOnly": "npm run lint && npm run test",
     "lint": "eslint stompServer.js lib",
@@ -33,6 +33,7 @@
   "devDependencies": {
     "chai": "^4.1.2",
     "eslint": "^5.16.0",
+    "minami": "^1.2.3",
     "mocha": "^5.1.1",
     "stompjs": "^2.3.3"
   }

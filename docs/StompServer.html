@@ -2,22 +2,35 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Class: StompServer</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>StompServer - Documentation</title>
 
-    <script src="scripts/prettify/prettify.js"> </script>
-    <script src="scripts/prettify/lang-css.js"> </script>
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
     <!--[if lt IE 9]>
       <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
+    <link type="text/css" rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
     <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
     <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
 </head>
-
 <body>
 
-<div id="main">
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
 
-    <h1 class="page-title">Class: StompServer</h1>
+<label for="nav-trigger" class="overlay"></label>
+
+<nav>
+    <li class="nav-link nav-home-link"><a href="index.html">Home</a></li><li class="nav-heading">Classes</li><li class="nav-heading"><span class="nav-item-type type-class">C</span><span class="nav-item-name"><a href="StompServer.html">StompServer</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#_checkSubMatchDest">_checkSubMatchDest</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#_sendToSubscriptions">_sendToSubscriptions</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#addMiddleware">addMiddleware</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#afterConnectionClose">afterConnectionClose</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#frameParser">frameParser</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#frameSerializer">frameSerializer</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#heartbeatOff">heartbeatOff</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#heartbeatOn">heartbeatOn</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#removeMiddleware">removeMiddleware</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#setMiddleware">setMiddleware</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#subscribe">subscribe</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="StompServer.html#unsubscribe">unsubscribe</a></span></li><li class="nav-heading">Events</li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:connected">connected</a></span></li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:connecting">connecting</a></span></li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:disconnected">disconnected</a></span></li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:send">send</a></span></li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:subscribe">subscribe</a></span></li><li class="nav-heading"><span class="nav-item-type type-event">E</span><span class="nav-item-name"><a href="StompServer.html#event:unsubscribe">unsubscribe</a></span></li><li class="nav-heading"><a href="global.html">Globals</a></li>
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">StompServer</h1>
+    
 
     
 
@@ -28,7 +41,9 @@
 
 <header>
     
-        <h2><span class="attribs"><span class="type-signature"></span></span>StompServer<span class="signature">(config)</span><span class="type-signature"></span></h2>
+        <h2>
+        StompServer
+        </h2>
         
     
 </header>
@@ -37,72 +52,14 @@
     <div class="container-overview">
     
         
+<div class="section-method">
 
     
 
-    
     <h4 class="name" id="StompServer"><span class="type-signature"></span>new StompServer<span class="signature">(config)</span><span class="type-signature"></span></h4>
-    
 
     
 
-
-
-
-
-
-
-
-
-
-
-    <h5>Parameters:</h5>
-    
-
-<table class="params">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>config</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type"><a href="global.html#ServerConfig">ServerConfig</a></span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last">Configuration for STOMP server</td>
-        </tr>
-
-    
-    </tbody>
-</table>
 
 
 
@@ -157,6 +114,56 @@
 
 
 
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>config</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type"><code><a href="global.html#ServerConfig">ServerConfig</a></code></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <p>Configuration for STOMP server</p>
+                
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
 
 
 
@@ -168,6 +175,12 @@
 
 
 
+
+
+
+
+
+</div>
     
     </div>
 
@@ -188,9 +201,7 @@
 
     
 
-    
-
-    
+     
 
     
 
@@ -199,16 +210,15 @@
 
         
             
+<div class="section-members">
 <h4 class="name" id="send"><span class="type-signature"></span>send<span class="type-signature"></span></h4>
 
 
 
 
 <div class="description">
-    Send message to topic
+    <p>Send message to topic</p>
 </div>
-
-
 
 
 
@@ -259,6 +269,9 @@
 
 
 
+
+</div>
+
         
     
 
@@ -267,20 +280,63 @@
 
         
             
+<div class="section-method">
 
     
 
-    
-    <h4 class="name" id="addMiddleware"><span class="type-signature"></span>addMiddleware<span class="signature">(command, handler)</span><span class="type-signature"></span></h4>
-    
+    <h4 class="name" id="_checkSubMatchDest"><span class="type-signature">(private) </span>_checkSubMatchDest<span class="signature">(sub, args)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
 
     
 
 
 
 <div class="description">
-    Add middle-ware for specific command
+    <p>Test if the input subscriber has subscribed to the target destination.</p>
 </div>
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="stompServer.js.html">stompServer.js</a>, <a href="stompServer.js.html#line490">line 490</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
 
 
 
@@ -315,27 +371,10 @@
 
         <tr>
             
-                <td class="name"><code>command</code></td>
+                <td class="name"><code>sub</code></td>
             
 
             <td class="type">
-            
-                
-<span class="param-type">'connect'</span>
-|
-
-<span class="param-type">'disconnect'</span>
-|
-
-<span class="param-type">'send'</span>
-|
-
-<span class="param-type">'subscribe'</span>
-|
-
-<span class="param-type">'unsubscribe'</span>
-
-
             
             </td>
 
@@ -343,20 +382,178 @@
 
             
 
-            <td class="description last">Command to hook</td>
+            <td class="description last">
+                <p>the subscriber</p>
+                
+            </td>
         </tr>
 
     
 
         <tr>
             
-                <td class="name"><code>handler</code></td>
+                <td class="name"><code>args</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <p>onSend args</p>
+                
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="section-returns">
+<h5>Returns:</h5>
+
+        
+
+<dl class="param-type">
+    <dt>
+        Type:
+    </dt>
+    <dd>
+        
+<span class="param-type"><code>boolean</code></span>
+
+
+    </dd>
+</dl>
+
+
+<div class="param-desc">
+    <p>true if the input subscription matches destination</p>
+</div>
+
+    
+</div>
+
+
+
+</div>
+        
+            
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="_sendToSubscriptions"><span class="type-signature">(private) </span>_sendToSubscriptions<span class="signature">(socket, args)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+<div class="description">
+    <p>Send message to matching subscribers.</p>
+</div>
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="stompServer.js.html">stompServer.js</a>, <a href="stompServer.js.html#line347">line 347</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>socket</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">function</span>
+<span class="param-type"><code>object</code></span>
 
 
             
@@ -366,13 +563,73 @@
 
             
 
-            <td class="description last">function to add in middle-ware</td>
+            <td class="description last">
+                <p>websocket to send the message on</p>
+                
+            </td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>args</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type"><code>string</code></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <p>onSend args</p>
+                
+            </td>
         </tr>
 
     
     </tbody>
 </table>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
+            
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="addMiddleware"><span class="type-signature"></span>addMiddleware<span class="signature">(command, handler)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+<div class="description">
+    <p>Add middle-ware for specific command</p>
+</div>
 
 
 
@@ -426,42 +683,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="afterConnectionClose"><span class="type-signature"></span>afterConnectionClose<span class="signature">(socket)</span><span class="type-signature"></span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    After connection close
-</div>
-
-
-
-
-
-
-
-
-
     <h5>Parameters:</h5>
     
 
@@ -487,10 +708,27 @@
 
         <tr>
             
-                <td class="name"><code>socket</code></td>
+                <td class="name"><code>command</code></td>
             
 
             <td class="type">
+            
+                
+<span class="param-type"><code>'connect'</code></span>
+|
+
+<span class="param-type"><code>'disconnect'</code></span>
+|
+
+<span class="param-type"><code>'send'</code></span>
+|
+
+<span class="param-type"><code>'subscribe'</code></span>
+|
+
+<span class="param-type"><code>'unsubscribe'</code></span>
+
+
             
             </td>
 
@@ -498,13 +736,73 @@
 
             
 
-            <td class="description last">WebSocket connection that has been closed and is dying</td>
+            <td class="description last">
+                <p>Command to hook</p>
+                
+            </td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>handler</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type"><code>function</code></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <p>function to add in middle-ware</p>
+                
+            </td>
         </tr>
 
     
     </tbody>
 </table>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
+            
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="afterConnectionClose"><span class="type-signature"></span>afterConnectionClose<span class="signature">(socket)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+<div class="description">
+    <p>After connection close</p>
+</div>
 
 
 
@@ -558,42 +856,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="frameParser"><span class="type-signature"></span>frameParser<span class="signature">(frame)</span><span class="type-signature"> &rarr; {<a href="global.html#MsgFrame">MsgFrame</a>}</span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    Parse frame to object for reading
-</div>
-
-
-
-
-
-
-
-
-
     <h5>Parameters:</h5>
     
 
@@ -619,15 +881,10 @@
 
         <tr>
             
-                <td class="name"><code>frame</code></td>
+                <td class="name"><code>socket</code></td>
             
 
             <td class="type">
-            
-                
-<span class="param-type"><a href="global.html#MsgFrame">MsgFrame</a></span>
-
-
             
             </td>
 
@@ -635,13 +892,47 @@
 
             
 
-            <td class="description last">Message frame</td>
+            <td class="description last">
+                <p>WebSocket connection that has been closed and is dying</p>
+                
+            </td>
         </tr>
 
     
     </tbody>
 </table>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
+            
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="frameParser"><span class="type-signature"></span>frameParser<span class="signature">(frame)</span><span class="type-signature"> &rarr; {<a href="global.html#MsgFrame">MsgFrame</a>}</span></h4>
+
+    
+
+
+
+<div class="description">
+    <p>Parse frame to object for reading</p>
+</div>
 
 
 
@@ -695,64 +986,6 @@
 
 
 
-
-
-
-
-
-
-<h5>Returns:</h5>
-
-        
-<div class="param-desc">
-    modified frame
-</div>
-
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type"><a href="global.html#MsgFrame">MsgFrame</a></span>
-
-
-    </dd>
-</dl>
-
-    
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="frameSerializer"><span class="type-signature"></span>frameSerializer<span class="signature">(frame)</span><span class="type-signature"> &rarr; {<a href="global.html#MsgFrame">MsgFrame</a>}</span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    Serialize frame to string for send
-</div>
-
-
-
-
-
-
-
-
-
     <h5>Parameters:</h5>
     
 
@@ -784,7 +1017,7 @@
             <td class="type">
             
                 
-<span class="param-type"><a href="global.html#MsgFrame">MsgFrame</a></span>
+<span class="param-type"><code><a href="global.html#MsgFrame">MsgFrame</a></code></span>
 
 
             
@@ -794,13 +1027,72 @@
 
             
 
-            <td class="description last">Message frame</td>
+            <td class="description last">
+                <p>Message frame</p>
+                
+            </td>
         </tr>
 
     
     </tbody>
 </table>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="section-returns">
+<h5>Returns:</h5>
+
+        
+
+<dl class="param-type">
+    <dt>
+        Type:
+    </dt>
+    <dd>
+        
+<span class="param-type"><code><a href="global.html#MsgFrame">MsgFrame</a></code></span>
+
+
+    </dd>
+</dl>
+
+
+<div class="param-desc">
+    <p>modified frame</p>
+</div>
+
+    
+</div>
+
+
+
+</div>
+        
+            
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="frameSerializer"><span class="type-signature"></span>frameSerializer<span class="signature">(frame)</span><span class="type-signature"> &rarr; {<a href="global.html#MsgFrame">MsgFrame</a>}</span></h4>
+
+    
+
+
+
+<div class="description">
+    <p>Serialize frame to string for send</p>
+</div>
 
 
 
@@ -854,64 +1146,6 @@
 
 
 
-
-
-
-
-
-
-<h5>Returns:</h5>
-
-        
-<div class="param-desc">
-    modified frame
-</div>
-
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type"><a href="global.html#MsgFrame">MsgFrame</a></span>
-
-
-    </dd>
-</dl>
-
-    
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="heartbeatOff"><span class="type-signature"></span>heartbeatOff<span class="signature">(socket)</span><span class="type-signature"></span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    Heart-beat: Turn Off for given socket
-</div>
-
-
-
-
-
-
-
-
-
     <h5>Parameters:</h5>
     
 
@@ -937,13 +1171,13 @@
 
         <tr>
             
-                <td class="name"><code>socket</code></td>
+                <td class="name"><code>frame</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">WebSocket</span>
+<span class="param-type"><code><a href="global.html#MsgFrame">MsgFrame</a></code></span>
 
 
             
@@ -953,13 +1187,72 @@
 
             
 
-            <td class="description last">Destination WebSocket</td>
+            <td class="description last">
+                <p>Message frame</p>
+                
+            </td>
         </tr>
 
     
     </tbody>
 </table>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="section-returns">
+<h5>Returns:</h5>
+
+        
+
+<dl class="param-type">
+    <dt>
+        Type:
+    </dt>
+    <dd>
+        
+<span class="param-type"><code><a href="global.html#MsgFrame">MsgFrame</a></code></span>
+
+
+    </dd>
+</dl>
+
+
+<div class="param-desc">
+    <p>modified frame</p>
+</div>
+
+    
+</div>
+
+
+
+</div>
+        
+            
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="heartbeatOff"><span class="type-signature"></span>heartbeatOff<span class="signature">(socket)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+<div class="description">
+    <p>Heart-beat: Turn Off for given socket</p>
+</div>
 
 
 
@@ -1013,42 +1306,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="heartbeatOn"><span class="type-signature"></span>heartbeatOn<span class="signature">(socket, interval, serverSide)</span><span class="type-signature"></span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    Heart-beat: Turn On for given socket
-</div>
-
-
-
-
-
-
-
-
-
     <h5>Parameters:</h5>
     
 
@@ -1080,7 +1337,7 @@
             <td class="type">
             
                 
-<span class="param-type">WebSocket</span>
+<span class="param-type"><code>WebSocket</code></span>
 
 
             
@@ -1090,59 +1347,47 @@
 
             
 
-            <td class="description last">Destination WebSocket</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>interval</code></td>
-            
-
-            <td class="type">
-            
+            <td class="description last">
+                <p>Destination WebSocket</p>
                 
-<span class="param-type">number</span>
-
-
-            
             </td>
-
-            
-
-            
-
-            <td class="description last">Heart-beat interval</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>serverSide</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">boolean</span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last">If true then server is responsible for sending pings</td>
         </tr>
 
     
     </tbody>
 </table>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
+            
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="heartbeatOn"><span class="type-signature"></span>heartbeatOn<span class="signature">(socket, interval, serverSide)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+<div class="description">
+    <p>Heart-beat: Turn On for given socket</p>
+</div>
 
 
 
@@ -1196,42 +1441,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="removeMiddleware"><span class="type-signature"></span>removeMiddleware<span class="signature">(command, handler)</span><span class="type-signature"></span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    Remove middle-ware specific for command
-</div>
-
-
-
-
-
-
-
-
-
     <h5>Parameters:</h5>
     
 
@@ -1257,25 +1466,13 @@
 
         <tr>
             
-                <td class="name"><code>command</code></td>
+                <td class="name"><code>socket</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">'connect'</span>
-|
-
-<span class="param-type">'disconnect'</span>
-|
-
-<span class="param-type">'send'</span>
-|
-
-<span class="param-type">'subscribe'</span>
-|
-
-<span class="param-type">'unsubscribe'</span>
+<span class="param-type"><code>WebSocket</code></span>
 
 
             
@@ -1285,20 +1482,23 @@
 
             
 
-            <td class="description last">Command with hook</td>
+            <td class="description last">
+                <p>Destination WebSocket</p>
+                
+            </td>
         </tr>
 
     
 
         <tr>
             
-                <td class="name"><code>handler</code></td>
+                <td class="name"><code>interval</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">function</span>
+<span class="param-type"><code>number</code></span>
 
 
             
@@ -1308,13 +1508,73 @@
 
             
 
-            <td class="description last">function to remove from middle-ware</td>
+            <td class="description last">
+                <p>Heart-beat interval</p>
+                
+            </td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>serverSide</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type"><code>boolean</code></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <p>If true then server is responsible for sending pings</p>
+                
+            </td>
         </tr>
 
     
     </tbody>
 </table>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
+            
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="removeMiddleware"><span class="type-signature"></span>removeMiddleware<span class="signature">(command, handler)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+<div class="description">
+    <p>Remove middle-ware specific for command</p>
+</div>
 
 
 
@@ -1368,42 +1628,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="setMiddleware"><span class="type-signature"></span>setMiddleware<span class="signature">(command, handler)</span><span class="type-signature"></span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    Clear and set middle-ware for specific command
-</div>
-
-
-
-
-
-
-
-
-
     <h5>Parameters:</h5>
     
 
@@ -1435,19 +1659,19 @@
             <td class="type">
             
                 
-<span class="param-type">'connect'</span>
+<span class="param-type"><code>'connect'</code></span>
 |
 
-<span class="param-type">'disconnect'</span>
+<span class="param-type"><code>'disconnect'</code></span>
 |
 
-<span class="param-type">'send'</span>
+<span class="param-type"><code>'send'</code></span>
 |
 
-<span class="param-type">'subscribe'</span>
+<span class="param-type"><code>'subscribe'</code></span>
 |
 
-<span class="param-type">'unsubscribe'</span>
+<span class="param-type"><code>'unsubscribe'</code></span>
 
 
             
@@ -1457,7 +1681,10 @@
 
             
 
-            <td class="description last">Command to hook</td>
+            <td class="description last">
+                <p>Command with hook</p>
+                
+            </td>
         </tr>
 
     
@@ -1470,7 +1697,7 @@
             <td class="type">
             
                 
-<span class="param-type">function</span>
+<span class="param-type"><code>function</code></span>
 
 
             
@@ -1480,13 +1707,47 @@
 
             
 
-            <td class="description last">function to add in middle-ware</td>
+            <td class="description last">
+                <p>function to remove from middle-ware</p>
+                
+            </td>
         </tr>
 
     
     </tbody>
 </table>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
+            
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="setMiddleware"><span class="type-signature"></span>setMiddleware<span class="signature">(command, handler)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+<div class="description">
+    <p>Clear and set middle-ware for specific command</p>
+</div>
 
 
 
@@ -1540,42 +1801,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="subscribe"><span class="type-signature"></span>subscribe<span class="signature">(topic, callback<span class="signature-attributes">opt</span>, headers)</span><span class="type-signature"> &rarr; {string}</span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    Subscribe topic
-</div>
-
-
-
-
-
-
-
-
-
     <h5>Parameters:</h5>
     
 
@@ -1589,8 +1814,6 @@
         <th>Type</th>
 
         
-        <th>Attributes</th>
-        
 
         
 
@@ -1603,101 +1826,101 @@
 
         <tr>
             
-                <td class="name"><code>topic</code></td>
+                <td class="name"><code>command</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>'connect'</code></span>
+|
+
+<span class="param-type"><code>'disconnect'</code></span>
+|
+
+<span class="param-type"><code>'send'</code></span>
+|
+
+<span class="param-type"><code>'subscribe'</code></span>
+|
+
+<span class="param-type"><code>'unsubscribe'</code></span>
 
 
             
             </td>
 
             
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
 
             
 
-            <td class="description last">Subscribed destination, wildcard is supported</td>
+            <td class="description last">
+                <p>Command to hook</p>
+                
+            </td>
         </tr>
 
     
 
         <tr>
             
-                <td class="name"><code>callback</code></td>
+                <td class="name"><code>handler</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type"><a href="global.html#OnSubscribedMessageCallback">OnSubscribedMessageCallback</a></span>
+<span class="param-type"><code>function</code></span>
 
 
             
             </td>
 
             
-                <td class="attributes">
+
+            
+
+            <td class="description last">
+                <p>function to add in middle-ware</p>
                 
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-
-            <td class="description last">Callback function</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>headers</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">object</span>
-
-
-            
             </td>
-
-            
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
-
-            
-
-            <td class="description last">Optional headers, used by client to provide a subscription ID (headers.id)</td>
         </tr>
 
     
     </tbody>
 </table>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
+            
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="subscribe"><span class="type-signature"></span>subscribe<span class="signature">(topic, callback<span class="signature-attributes">opt</span>, headers)</span><span class="type-signature"> &rarr; {string}</span></h4>
+
+    
+
+
+
+<div class="description">
+    <p>Subscribe topic</p>
+</div>
 
 
 
@@ -1751,72 +1974,6 @@
 
 
 
-
-
-
-
-
-
-<h5>Returns:</h5>
-
-        
-<div class="param-desc">
-    Subscription id, when message is received event with this id is emitted
-</div>
-
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">string</span>
-
-
-    </dd>
-</dl>
-
-    
-
-
-
-
-    <h5>Example</h5>
-    
-    <pre class="prettyprint"><code>stompServer.subscribe('/test.data', function(msg, headers) {});
-//or alternative
-var subs_id = stompServer.subscribe('/test.data');
-stompServer.on(subs_id, function(msg, headers) {});</code></pre>
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="unsubscribe"><span class="type-signature"></span>unsubscribe<span class="signature">(id)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    Unsubscribe topic with subscription id
-</div>
-
-
-
-
-
-
-
-
-
     <h5>Parameters:</h5>
     
 
@@ -1830,6 +1987,8 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
         <th>Type</th>
 
         
+        <th>Attributes</th>
+        
 
         
 
@@ -1842,29 +2001,176 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
         <tr>
             
-                <td class="name"><code>id</code></td>
+                <td class="name"><code>topic</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
             </td>
 
             
+                <td class="attributes">
+                
+
+                
+
+                
+                </td>
+            
 
             
 
-            <td class="description last">Subscription id</td>
+            <td class="description last">
+                <p>Subscribed destination, wildcard is supported</p>
+                
+            </td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>callback</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type"><code><a href="global.html#OnSubscribedMessageCallback">OnSubscribedMessageCallback</a></code></span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+
+            <td class="description last">
+                <p>Callback function</p>
+                
+            </td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>headers</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type"><code>object</code></span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+
+                
+
+                
+                </td>
+            
+
+            
+
+            <td class="description last">
+                <p>Optional headers, used by client to provide a subscription ID (headers.id)</p>
+                
+            </td>
         </tr>
 
     
     </tbody>
 </table>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="section-returns">
+<h5>Returns:</h5>
+
+        
+
+<dl class="param-type">
+    <dt>
+        Type:
+    </dt>
+    <dd>
+        
+<span class="param-type"><code>string</code></span>
+
+
+    </dd>
+</dl>
+
+
+<div class="param-desc">
+    <p>Subscription id, when message is received event with this id is emitted</p>
+</div>
+
+    
+</div>
+
+
+
+<div class="section-examples">
+<h5>Example</h5>
+
+    <pre class="prettyprint"><code>stompServer.subscribe('/test.data', function(msg, headers) {});
+//or alternative
+var subs_id = stompServer.subscribe('/test.data');
+stompServer.on(subs_id, function(msg, headers) {});</code></pre>
+
+</div>
+
+</div>
+        
+            
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="unsubscribe"><span class="type-signature"></span>unsubscribe<span class="signature">(id)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
+
+    
+
+
+
+<div class="description">
+    <p>Unsubscribe topic with subscription id</p>
+</div>
 
 
 
@@ -1918,39 +2224,98 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
 
 
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>id</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type"><code>string</code></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <p>Subscription id</p>
+                
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
 
 
 
 
 
 
+
+
+
+
+
+
+
+
+<div class="section-returns">
 <h5>Returns:</h5>
 
         
-<div class="param-desc">
-    Subscription is deleted
-</div>
 
-
-
-<dl>
+<dl class="param-type">
     <dt>
-        Type
+        Type:
     </dt>
     <dd>
         
-<span class="param-type">boolean</span>
+<span class="param-type"><code>boolean</code></span>
 
 
     </dd>
 </dl>
 
+
+<div class="param-desc">
+    <p>Subscription is deleted</p>
+</div>
+
     
+</div>
 
 
 
-
-
+</div>
         
     
 
@@ -1961,38 +2326,19 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
         
             
+<div class="section-method">
 
     
 
-    
     <h4 class="name" id="event:connected">connected</h4>
-    
 
     
 
 
 
 <div class="description">
-    Client connected event, emitted after connection established and negotiated
+    <p>Client connected event, emitted after connection established and negotiated</p>
 </div>
-
-
-
-
-
-    <h5>Type:</h5>
-    <ul>
-        <li>
-            
-<span class="param-type">object</span>
-
-
-        </li>
-    </ul>
-
-
-
-
 
 
 
@@ -2030,7 +2376,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
@@ -2042,6 +2388,8 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             <td class="description last"></td>
         </tr>
+
+        
 
     
 
@@ -2053,7 +2401,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">object</span>
+<span class="param-type"><code>object</code></span>
 
 
             
@@ -2065,6 +2413,8 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             <td class="description last"></td>
         </tr>
+
+        
 
     
     </tbody>
@@ -2117,55 +2467,52 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
+<div class="section-type">
+    <h5>Type:</h5>
+    <ul>
+        <li>
             
-
-    
-
-    
-    <h4 class="name" id="event:connecting">connecting</h4>
-    
-
-    
+<span class="param-type"><code>object</code></span>
 
 
-
-<div class="description">
-    Client connecting event, emitted after socket is opened.
+        </li>
+    </ul>
 </div>
 
 
 
 
 
-    <h5>Type:</h5>
-    <ul>
-        <li>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
             
-<span class="param-type">object</span>
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="event:connecting">connecting</h4>
+
+    
 
 
-        </li>
-    </ul>
 
-
-
-
+<div class="description">
+    <p>Client connecting event, emitted after socket is opened.</p>
+</div>
 
 
 
@@ -2203,7 +2550,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
@@ -2215,6 +2562,8 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             <td class="description last"></td>
         </tr>
+
+        
 
     
     </tbody>
@@ -2267,55 +2616,52 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
+<div class="section-type">
+    <h5>Type:</h5>
+    <ul>
+        <li>
             
-
-    
-
-    
-    <h4 class="name" id="event:disconnected">disconnected</h4>
-    
-
-    
+<span class="param-type"><code>object</code></span>
 
 
-
-<div class="description">
-    Client disconnected event
+        </li>
+    </ul>
 </div>
 
 
 
 
 
-    <h5>Type:</h5>
-    <ul>
-        <li>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
             
-<span class="param-type">object</span>
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="event:disconnected">disconnected</h4>
+
+    
 
 
-        </li>
-    </ul>
 
-
-
-
+<div class="description">
+    <p>Client disconnected event</p>
+</div>
 
 
 
@@ -2353,7 +2699,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
@@ -2365,6 +2711,8 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             <td class="description last"></td>
         </tr>
+
+        
 
     
     </tbody>
@@ -2417,55 +2765,52 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
+<div class="section-type">
+    <h5>Type:</h5>
+    <ul>
+        <li>
             
-
-    
-
-    
-    <h4 class="name" id="event:send">send</h4>
-    
-
-    
+<span class="param-type"><code>object</code></span>
 
 
-
-<div class="description">
-    Event emitted when broker send message to subscribers
+        </li>
+    </ul>
 </div>
 
 
 
 
 
-    <h5>Type:</h5>
-    <ul>
-        <li>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
             
-<span class="param-type">object</span>
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="event:send">send</h4>
+
+    
 
 
-        </li>
-    </ul>
 
-
-
-
+<div class="description">
+    <p>Event emitted when broker send message to subscribers</p>
+</div>
 
 
 
@@ -2503,7 +2848,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
@@ -2513,8 +2858,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Destination</td>
+            <td class="description last"><p>Destination</p></td>
         </tr>
+
+        
 
     
 
@@ -2526,7 +2873,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
@@ -2536,8 +2883,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Message frame</td>
+            <td class="description last"><p>Message frame</p></td>
         </tr>
+
+        
 
     
     </tbody>
@@ -2590,55 +2939,52 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
+<div class="section-type">
+    <h5>Type:</h5>
+    <ul>
+        <li>
             
-
-    
-
-    
-    <h4 class="name" id="event:subscribe">subscribe</h4>
-    
-
-    
+<span class="param-type"><code>object</code></span>
 
 
-
-<div class="description">
-    Client subscribe event, emitted when client subscribe topic
+        </li>
+    </ul>
 </div>
 
 
 
 
 
-    <h5>Type:</h5>
-    <ul>
-        <li>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
             
-<span class="param-type">object</span>
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="event:subscribe">subscribe</h4>
+
+    
 
 
-        </li>
-    </ul>
 
-
-
-
+<div class="description">
+    <p>Client subscribe event, emitted when client subscribe topic</p>
+</div>
 
 
 
@@ -2676,7 +3022,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
@@ -2686,8 +3032,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Subscription id</td>
+            <td class="description last"><p>Subscription id</p></td>
         </tr>
+
+        
 
     
 
@@ -2699,7 +3047,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
@@ -2709,8 +3057,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Socket session id</td>
+            <td class="description last"><p>Socket session id</p></td>
         </tr>
+
+        
 
     
 
@@ -2722,7 +3072,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
@@ -2732,8 +3082,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Destination topic</td>
+            <td class="description last"><p>Destination topic</p></td>
         </tr>
+
+        
 
     
 
@@ -2745,7 +3097,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">Array.&lt;string></span>
+<span class="param-type"><code>Array.&lt;string></code></span>
 
 
             
@@ -2755,8 +3107,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Tokenized topic</td>
+            <td class="description last"><p>Tokenized topic</p></td>
         </tr>
+
+        
 
     
 
@@ -2768,7 +3122,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">object</span>
+<span class="param-type"><code>object</code></span>
 
 
             
@@ -2778,8 +3132,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Connected socket</td>
+            <td class="description last"><p>Connected socket</p></td>
         </tr>
+
+        
 
     
     </tbody>
@@ -2832,55 +3188,52 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
+<div class="section-type">
+    <h5>Type:</h5>
+    <ul>
+        <li>
             
-
-    
-
-    
-    <h4 class="name" id="event:unsubscribe">unsubscribe</h4>
-    
-
-    
+<span class="param-type"><code>object</code></span>
 
 
-
-<div class="description">
-    Client subscribe event, emitted when client unsubscribe topic
+        </li>
+    </ul>
 </div>
 
 
 
 
 
-    <h5>Type:</h5>
-    <ul>
-        <li>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+        
             
-<span class="param-type">object</span>
+<div class="section-method">
+
+    
+
+    <h4 class="name" id="event:unsubscribe">unsubscribe</h4>
+
+    
 
 
-        </li>
-    </ul>
 
-
-
-
+<div class="description">
+    <p>Client subscribe event, emitted when client unsubscribe topic</p>
+</div>
 
 
 
@@ -2918,7 +3271,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
@@ -2928,8 +3281,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Subscription id</td>
+            <td class="description last"><p>Subscription id</p></td>
         </tr>
+
+        
 
     
 
@@ -2941,7 +3296,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
@@ -2951,8 +3306,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Socket session id</td>
+            <td class="description last"><p>Socket session id</p></td>
         </tr>
+
+        
 
     
 
@@ -2964,7 +3321,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type"><code>string</code></span>
 
 
             
@@ -2974,8 +3331,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Destination topic</td>
+            <td class="description last"><p>Destination topic</p></td>
         </tr>
+
+        
 
     
 
@@ -2987,7 +3346,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">Array.&lt;string></span>
+<span class="param-type"><code>Array.&lt;string></code></span>
 
 
             
@@ -2997,8 +3356,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Tokenized topic</td>
+            <td class="description last"><p>Tokenized topic</p></td>
         </tr>
+
+        
 
     
 
@@ -3010,7 +3371,7 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
             <td class="type">
             
                 
-<span class="param-type">object</span>
+<span class="param-type"><code>object</code></span>
 
 
             
@@ -3020,8 +3381,10 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
             
 
-            <td class="description last">Connected socket</td>
+            <td class="description last"><p>Connected socket</p></td>
         </tr>
+
+        
 
     
     </tbody>
@@ -3074,6 +3437,17 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
 
 
+<div class="section-type">
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type"><code>object</code></span>
+
+
+        </li>
+    </ul>
+</div>
 
 
 
@@ -3084,29 +3458,37 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
 
 
+
+
+
+
+
+
+
+<div class="section-returns">
 <h5>Returns:</h5>
 
         
 
-
-<dl>
+<dl class="param-type">
     <dt>
-        Type
+        Type:
     </dt>
     <dd>
         
-<span class="param-type">boolean</span>
+<span class="param-type"><code>boolean</code></span>
 
 
     </dd>
 </dl>
 
+
     
+</div>
 
 
 
-
-
+</div>
         
     
 </article>
@@ -3118,17 +3500,13 @@ stompServer.on(subs_id, function(msg, headers) {});</code></pre>
 
 </div>
 
-<nav>
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="StompServer.html">StompServer</a></li></ul><h3>Events</h3><ul><li><a href="StompServer.html#event:connected">connected</a></li><li><a href="StompServer.html#event:connecting">connecting</a></li><li><a href="StompServer.html#event:disconnected">disconnected</a></li><li><a href="StompServer.html#event:send">send</a></li><li><a href="StompServer.html#event:subscribe">subscribe</a></li><li><a href="StompServer.html#event:unsubscribe">unsubscribe</a></li></ul><h3><a href="global.html">Global</a></h3>
-</nav>
-
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.1</a> on Fri May 10 2019 11:24:40 GMT+0200 (CEST)
+    Generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.1</a> on Fri May 10 2019 11:42:45 GMT+0200 (CEST) using the Minami theme.
 </footer>
 
-<script> prettyPrint(); </script>
-<script src="scripts/linenumber.js"> </script>
+<script>prettyPrint();</script>
+<script src="scripts/linenumber.js"></script>
 </body>
 </html>
