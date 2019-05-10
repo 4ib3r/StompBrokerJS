@@ -1,9 +1,10 @@
 {
   "name": "stomp-broker-js",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Simple STOMP 1.1 Broker for nodejs http applications.",
   "main": "stompServer.js",
   "scripts": {
+    "jsdoc": "jsdoc -d ./docs -R README.MD stompServer.js",
     "preversion": "npm run lint && npm run test",
     "prepublishOnly": "npm run lint && npm run test",
     "lint": "eslint stompServer.js lib",
@@ -31,7 +32,7 @@
   },
   "devDependencies": {
     "chai": "^4.1.2",
-    "eslint": "^5.15.1",
+    "eslint": "^5.16.0",
     "mocha": "^5.1.1",
     "stompjs": "^2.3.3"
   }

@@ -1,4 +1,32 @@
-var EventEmitter    = require('events');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: stompServer.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: stompServer.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>var EventEmitter    = require('events');
 var util            = require('util');
 
 var stomp           = require('./lib/stomp');
@@ -74,7 +102,7 @@ var StompServer = function (config) {
   }.bind(this));
 
 
-  //<editor-fold defaultstate="collapsed" desc="Events">
+  //&lt;editor-fold defaultstate="collapsed" desc="Events">
 
   /**
    *  Add middle-ware for specific command
@@ -183,7 +211,7 @@ var StompServer = function (config) {
     };
 
     if (frame.body !== undefined) {
-      if (typeof frame.body !== 'string' && !Buffer.isBuffer(frame.body)) {
+      if (typeof frame.body !== 'string' &amp;&amp; !Buffer.isBuffer(frame.body)) {
         throw 'Message body is not string';
       }
       frame.headers['content-length'] = frame.body.length;
@@ -254,7 +282,7 @@ var StompServer = function (config) {
   this.onUnsubscribe = withMiddleware('unsubscribe', function (socket, subId) {
     for (var t in this.subscribes) {
       var sub = this.subscribes[t];
-      if (sub.id === subId && sub.sessionId === socket.sessionId) {
+      if (sub.id === subId &amp;&amp; sub.sessionId === socket.sessionId) {
         delete this.subscribes[t];
         this.emit('unsubscribe', sub);
         return true;
@@ -263,10 +291,10 @@ var StompServer = function (config) {
     return false;
   });
 
-  //</editor-fold>
+  //&lt;/editor-fold>
 
 
-  //<editor-fold defaultstate="collapsed" desc="Subscribe & Unsubscribe">
+  //&lt;editor-fold defaultstate="collapsed" desc="Subscribe &amp; Unsubscribe">
 
   var selfSocket = {
     sessionId: 'self_1234'
@@ -332,10 +360,10 @@ var StompServer = function (config) {
     return this.onUnsubscribe(selfSocket, id);
   };
 
-  //</editor-fold>
+  //&lt;/editor-fold>
 
 
-  //<editor-fold defaultstate="collapsed" desc="Send">
+  //&lt;editor-fold defaultstate="collapsed" desc="Send">
 
   /**
    * Send message to matching subscribers.
@@ -368,7 +396,7 @@ var StompServer = function (config) {
   /** Send message to topic
    *
    * @param {string} topic Destination for message
-   * @param {Object.<string, string>} headers Message headers
+   * @param {Object.&lt;string, string>} headers Message headers
    * @param {string} body Message body
    */
   this.send = function (topic, headers, body) {
@@ -389,10 +417,10 @@ var StompServer = function (config) {
     this.onSend(selfSocket, args);
   }.bind(this);
 
-  //</editor-fold>
+  //&lt;/editor-fold>
 
 
-  //<editor-fold defaultstate="collapsed" desc="Frames">
+  //&lt;editor-fold defaultstate="collapsed" desc="Frames">
 
   /**
    * Serialize frame to string for send
@@ -401,7 +429,7 @@ var StompServer = function (config) {
    * @return {MsgFrame} modified frame
    * */
   this.frameSerializer = function (frame) {
-    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json' && !Buffer.isBuffer(frame.body)) {
+    if (frame.body !== undefined &amp;&amp; frame.headers['content-type'] === 'application/json' &amp;&amp; !Buffer.isBuffer(frame.body)) {
       frame.body = JSON.stringify(frame.body);
     }
     return frame;
@@ -415,16 +443,16 @@ var StompServer = function (config) {
    * @return {MsgFrame} modified frame
    * */
   this.frameParser = function (frame) {
-    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json') {
+    if (frame.body !== undefined &amp;&amp; frame.headers['content-type'] === 'application/json') {
       frame.body = JSON.parse(frame.body);
     }
     return frame;
   };
 
-  //</editor-fold>
+  //&lt;/editor-fold>
 
 
-  //<editor-fold defaultstate="collapsed" desc="Heartbeat">
+  //&lt;editor-fold defaultstate="collapsed" desc="Heartbeat">
 
   /**
    * Heart-beat: Turn On for given socket
@@ -440,7 +468,7 @@ var StompServer = function (config) {
       // Server takes responsibility for sending pings
       // Client should close connection on timeout
       socket.heartbeatClock = setInterval(function() {
-        if(socket.readyState === 1) {
+        if(socket.readyState == 1) {
           self.conf.debug('PING');
           socket.send(BYTES.LF);
         }
@@ -476,7 +504,7 @@ var StompServer = function (config) {
     }
   };
 
-  //</editor-fold>
+  //&lt;/editor-fold>
 
 
   /**
@@ -492,7 +520,7 @@ var StompServer = function (config) {
     var tokens = stompUtils.tokenizeDestination(args.dest);
     for (var t in tokens) {
       var token = tokens[t];
-      if (sub.tokens[t] === undefined || (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
+      if (sub.tokens[t] === undefined || (sub.tokens[t] !== token &amp;&amp; sub.tokens[t] !== '*' &amp;&amp; sub.tokens[t] !== '**')) {
         match = false;
         break;
       } else if (sub.tokens[t] === '**') {
@@ -552,3 +580,26 @@ util.inherits(StompServer, EventEmitter);
 
 // Export
 module.exports = StompServer;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="StompServer.html">StompServer</a></li></ul><h3>Events</h3><ul><li><a href="StompServer.html#event:connected">connected</a></li><li><a href="StompServer.html#event:connecting">connecting</a></li><li><a href="StompServer.html#event:disconnected">disconnected</a></li><li><a href="StompServer.html#event:send">send</a></li><li><a href="StompServer.html#event:subscribe">subscribe</a></li><li><a href="StompServer.html#event:unsubscribe">unsubscribe</a></li></ul><h3><a href="global.html">Global</a></h3>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.1</a> on Fri May 10 2019 11:24:40 GMT+0200 (CEST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
