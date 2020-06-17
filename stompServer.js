@@ -384,7 +384,7 @@ var StompServer = function (config) {
     };
     var args = {
       dest: topic,
-      frame: this.frameParser(frame)
+      frame: this.frameSerializer(frame)
     };
     this.onSend(selfSocket, args);
   }.bind(this);
