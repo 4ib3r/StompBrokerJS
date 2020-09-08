@@ -59,6 +59,8 @@ var buildConfig     = require('./lib/config');
  * @param {array} [heartbeat=[10000, 10000]] Heartbeat; read documentation to config according to your desire
  * @param {number} [heartbeatErrorMargin=1000] Heartbeat error margin; specify how strict server should be
  * @param {function} [debug=function(args) {}] Debug function
+ * @param {string} [protocol=ws] Protocol to use ('sockjs' or 'ws')
+ * @param {object} [protocolConfig={}] Protocol specific configuration
  */
 
 /**
@@ -89,6 +91,7 @@ var StompServer = function (config) {
   this.frameHandler = new stomp.FrameHandler(this);
 
   this.socket = new protocolAdapter[this.conf.protocol]({
+      ...this.conf.protocolConfig,
       server: this.conf.server,
       path: this.conf.path,
       perMessageDeflate: false
