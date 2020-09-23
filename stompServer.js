@@ -252,10 +252,10 @@ var StompServer = function (config) {
    * @return {boolean}
    */
   this.onUnsubscribe = withMiddleware('unsubscribe', function (socket, subId) {
-    for (var t in this.subscribes) {
-      var sub = this.subscribes[t];
+    for (var i = 0; i < this.subscribes.length; i++) {
+      var sub = this.subscribes[i];
       if (sub.id === subId && sub.sessionId === socket.sessionId) {
-        delete this.subscribes[t];
+        this.subscribes.splice(i--, 1);
         this.emit('unsubscribe', sub);
         return true;
       }
@@ -345,7 +345,7 @@ var StompServer = function (config) {
    * @private
    */
   this._sendToSubscriptions = function (socket, args) {
-    for (var i in this.subscribes) {
+    for (var i = 0; i < this.subscribes.length; i++) {
       var sub = this.subscribes[i];
       if (socket.sessionId === sub.sessionId) {
         continue;
@@ -510,10 +510,10 @@ var StompServer = function (config) {
    */
   this.afterConnectionClose = function (socket) {
     // remove from subscribes
-    for (var t in this.subscribes) {
-      var sub = this.subscribes[t];
+    for (var i = 0; i < this.subscribes.length; i++) {
+      var sub = this.subscribes[i];
       if (sub.sessionId === socket.sessionId) {
-        delete this.subscribes[t];
+        this.subscribes.splice(i--, 1);
       }
     }
 
