@@ -48,6 +48,7 @@ var StompServer = function (config) {
   this.frameHandler = new stomp.FrameHandler(this);
 
   this.socket = new protocolAdapter[this.conf.protocol]({
+      ...this.conf.protocolConfig,
       server: this.conf.server,
       path: this.conf.path,
       perMessageDeflate: false
