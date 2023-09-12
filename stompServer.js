@@ -60,7 +60,8 @@ var StompServer = function (config) {
    * @type {object}
    * @property {string} sessionId
    */
-  this.socket.on('connection', function (ws) {
+  this.socket.on('connection', function (ws, incomingMessage) {
+    ws.__req = incomingMessage;
     ws.sessionId = stompUtils.genId();
 
     this.emit('connecting', ws.sessionId);
