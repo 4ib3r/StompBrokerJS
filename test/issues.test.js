@@ -174,6 +174,26 @@ describe('Reported issues', function () {
       var broker = new StompServer({protocolConfig: {noServer: true}});
       assert.isFunction(broker.socket.handleUpgrade);
     });
+
+    it('accepts STOMP connections upgraded manually on a shared http server', function () {
+      var broker = new StompServer({protocolConfig: {noServer: true}});
+      server = http.createServer();
+      server.on('upgrade', function (request, socket, head) {
+        broker.socket.handleUpgrade(request, socket, head, function (ws) {
+          broker.socket.emit('connection', ws, request);
+        });
+      });
+      return new Promise(function (resolve) {
+        server.listen(0, function () {
+          port = server.address().port;
+          resolve();
+        });
+      }).then(function () {
+        return newClient().connect();
+      }).then(function (connected) {
+        assert.equal(connected.command, 'CONNECTED');
+      });
+    });
   });
 
 

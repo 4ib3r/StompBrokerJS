@@ -81,6 +81,57 @@ describe('StompServer broker', function () {
       });
     });
 
+    it('rejects frames sent before CONNECT', function () {
+      var client;
+      return ctx.start().then(function (broker) {
+        client = ctx.client();
+        return client.open().then(function () {
+          client.send('SUBSCRIBE', {destination: '/a', id: 's1'});
+          return client.waitForCommand('ERROR');
+        }).then(function () {
+          assert.lengthOf(broker.subscribes, 0);
+          return client.waitForClose();
+        });
+      });
+    });
+
+    it('rejects a client without a common protocol version', function () {
+      var client;
+      return ctx.start().then(function () {
+        client = ctx.client();
+        return client.open();
+      }).then(function () {
+        client.send('CONNECT', {'accept-version': '9.9'});
+        return client.waitForCommand('ERROR');
+      }).then(function () {
+        return client.waitForClose();
+      });
+    });
+
+    it('negotiates the highest common protocol version', function () {
+      return ctx.start().then(function () {
+        return ctx.client().connect({'accept-version': '1.0,1.1,1.2'});
+      }).then(function (connected) {
+        assert.equal(connected.headers.version, '1.1');
+      });
+    });
+
+    it('does not escape headers for STOMP 1.0 sessions', function () {
+      var client;
+      return ctx.start().then(function () {
+        client = ctx.client();
+        return client.connect({'accept-version': '1.0'});
+      }).then(function (connected) {
+        assert.equal(connected.headers.version, '1.0');
+        return subscribe(client, '/t', 's1');
+      }).then(function () {
+        ctx.broker.send('/t', {url: 'http://x:80/'}, 'x');
+        return client.waitForCommand('MESSAGE');
+      }).then(function (msg) {
+        assert.equal(msg.headers.url, 'http://x:80/');
+      });
+    });
+
     it('emits disconnected when the socket closes', function () {
       var disconnected = null;
       var client;
@@ -287,6 +338,31 @@ describe('StompServer broker', function () {
       });
     });
 
+    it('a closing subscriber does not break delivery for the sender', function () {
+      var sender;
+      var closing;
+      var other;
+      return ctx.start().then(function () {
+        return Promise.all([connectedClient(), connectedClient(), connectedClient()]);
+      }).then(function (clients) {
+        sender = clients[0];
+        closing = clients[1];
+        other = clients[2];
+        return Promise.all([subscribe(closing, '/t', 'c1'), subscribe(other, '/t', 'o1')]);
+      }).then(function () {
+        // mark the broker side socket of `closing` as closing without removing its subscription
+        ctx.broker.subscribes.forEach(function (sub) {
+          if (sub.id === 'c1') {
+            sub.socket.close();
+          }
+        });
+        sender.send('SEND', {destination: '/t', receipt: 'r1'}, 'x');
+        return Promise.all([sender.waitForCommand('RECEIPT'), other.waitForCommand('MESSAGE')]);
+      }).then(function () {
+        assert.isFalse(sender.closed);
+      });
+    });
+
     it('generates a unique message-id per message', function () {
       var client;
       return ctx.start().then(function () {
@@ -342,6 +418,17 @@ describe('StompServer broker', function () {
         return delay(50);
       }).then(function () {
         assert.equal(hits, 1);
+      });
+    });
+
+    it('subscribe() and send() require a destination', function () {
+      return ctx.start().then(function (broker) {
+        assert.throws(function () {
+          broker.subscribe(undefined, function () {});
+        }, Error);
+        assert.throws(function () {
+          broker.send(undefined, {}, 'x');
+        }, Error);
       });
     });
 

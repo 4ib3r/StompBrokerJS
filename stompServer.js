@@ -67,12 +67,34 @@ var StompServer = function (config) {
     this.conf.debug('Connect', ws.sessionId);
 
     ws.on('message', this.parseRequest.bind(this, ws));
-    ws.on('close', this.onDisconnect.bind(this, ws));
+    ws.on('close', function () {
+      // DISCONNECT frame already handled the graceful disconnect
+      if (!ws.stompDisconnected) {
+        ws.stompDisconnected = true;
+        try {
+          this.onDisconnect(ws);
+        } catch (err) {
+          this._emitError(err);
+        }
+      }
+      this.afterConnectionClose(ws);
+    }.bind(this));
     ws.on('error', function (err) {
       this.conf.debug(err);
-      this.emit('error', err);
+      this._emitError(err);
     }.bind(this));
   }.bind(this));
+
+  /**
+   * Emit error event only when somebody listens, an unhandled 'error' event
+   * would otherwise crash the process.
+   * @private
+   */
+  this._emitError = function (err) {
+    if (this.listenerCount('error') > 0) {
+      this.emit('error', err);
+    }
+  };
 
 
   //<editor-fold defaultstate="collapsed" desc="Events">
@@ -106,7 +128,7 @@ var StompServer = function (config) {
    *  @param {function} handler function to remove from middle-ware
    * */
   this.removeMiddleware = function (command, handler) {
-    var handlers = this.middleware[command.toLowerCase()];
+    var handlers = this.middleware[command.toLowerCase()] || [];
     var idx = handlers.indexOf(handler);
     if (idx >= 0) {
       handlers.splice(idx, 1);
@@ -114,22 +136,32 @@ var StompServer = function (config) {
   };
 
 
+  /**
+   * Wrap command handler with middle-ware chain. Middle-ware is called with
+   * (socket, args, next) and must return result of next() to continue, or a
+   * falsy value to reject the command. It may also return a Promise.
+   */
   function withMiddleware(command, finalHandler) {
     return function(socket, args) {
-      var handlers = this.middleware[command.toLowerCase()] || [];
+      var handlers = (this.middleware[command.toLowerCase()] || []).slice();
       var iter = handlers[Symbol.iterator]();
       var self = this;
+      var finalArgs = arguments;
 
       function callNext() {
         var iteration = iter.next();
         if (iteration.done) {
-          return finalHandler.call(self, socket, args);
+          return finalHandler.apply(self, finalArgs);
         }
         return iteration.value(socket, args, callNext);
       }
       return callNext();
     };
   }
+
+  /** Headers controlled by the broker, never copied from a SEND frame */
+  var RESERVED_HEADERS = ['destination', 'subscription', 'message-id', 'receipt',
+    'content-length', 'bytes_message', 'transaction'];
 
 
   /**
@@ -175,37 +207,41 @@ var StompServer = function (config) {
    * @property {string} frame Message frame
    */
   this.onSend = withMiddleware('send', function (socket, args, callback) {
+    if (typeof args.dest !== 'string' || args.dest === '') {
+      throw new Error('Message destination is required');
+    }
     var bodyObj = args.frame.body;
     var frame = this.frameSerializer(args.frame);
-    var headers = {
-      //default headers
-      'message-id': stompUtils.genId('msg'),
-      'content-type': 'text/plain'
-    };
 
-    if (frame.body !== undefined) {
-      if (typeof frame.body !== 'string' && !Buffer.isBuffer(frame.body)) {
-        throw 'Message body is not string';
-      }
-      frame.headers['content-length'] = frame.body.length;
+    if (frame.body !== undefined && frame.body !== null &&
+        typeof frame.body !== 'string' && !Buffer.isBuffer(frame.body)) {
+      throw new Error('Message body is not string or Buffer');
     }
 
-    if (frame.headers) {
-      for (var key in frame.headers) {
-        headers[key] = frame.headers[key];
+    var headers = {};
+    var srcHeaders = frame.headers || {};
+    for (var key in srcHeaders) {
+      if (RESERVED_HEADERS.indexOf(key) < 0) {
+        headers[key] = srcHeaders[key];
       }
     }
+    headers.destination = args.dest;
+    headers['message-id'] = stompUtils.genId('msg');
+    if (frame.body !== undefined && frame.body !== null) {
+      headers['content-length'] = Buffer.byteLength(frame.body);
+    }
 
+    frame.headers = headers;
     args.frame = frame;
     this.emit('send', {
       frame: {
-        headers: frame.headers,
+        headers: headers,
         body: bodyObj
       },
       dest: args.dest
     });
 
-    this._sendToSubscriptions(socket, args);
+    this._sendToSubscriptions(socket, args, bodyObj);
 
     if (callback) {
       callback(true);
@@ -302,6 +338,9 @@ var StompServer = function (config) {
    * stompServer.on(subs_id, function(msg, headers) {});
    */
   this.subscribe = function (topic, callback, headers) {
+    if (typeof topic !== 'string' || topic === '') {
+      throw new Error('Subscription destination is required');
+    }
     var id;
     if (!headers || !headers.id) {
       id = 'self_' + Math.floor(Math.random() * 99999999999);
@@ -343,23 +382,32 @@ var StompServer = function (config) {
    *
    * @param {object} socket websocket to send the message on
    * @param {string} args onSend args
+   * @param {*} [bodyObj] parsed body passed to server-side subscribers
    * @private
    */
-  this._sendToSubscriptions = function (socket, args) {
-    for (var i = 0; i < this.subscribes.length; i++) {
-      var sub = this.subscribes[i];
+  this._sendToSubscriptions = function (socket, args, bodyObj) {
+    if (bodyObj === undefined) {
+      bodyObj = args.frame.body;
+    }
+    var destTokens = stompUtils.tokenizeDestination(args.dest);
+    // copy, callbacks may (un)subscribe while we iterate
+    var subscribes = this.subscribes.slice();
+    for (var i = 0; i < subscribes.length; i++) {
+      var sub = subscribes[i];
       if (socket.sessionId === sub.sessionId) {
         continue;
       }
-      var match = this._checkSubMatchDest(sub, args);
-      if (match) {
-        args.frame.headers.subscription = sub.id;
-        args.frame.command = 'MESSAGE';
+      if (this._matchTokens(sub.tokens, destTokens)) {
+        var headers = Object.assign({}, args.frame.headers, {subscription: sub.id});
         var sock = sub.socket;
         if (sock !== undefined) {
-          stompUtils.sendFrame(sock, args.frame);
+          stompUtils.sendFrame(sock, {
+            command: 'MESSAGE',
+            headers: headers,
+            body: args.frame.body
+          });
         } else {
-          this.emit(sub.id, args.frame.body, args.frame.headers);
+          this.emit(sub.id, bodyObj, headers);
         }
       }
     }
@@ -373,6 +421,9 @@ var StompServer = function (config) {
    * @param {string} body Message body
    */
   this.send = function (topic, headers, body) {
+    if (typeof topic !== 'string' || topic === '') {
+      throw new Error('Message destination is required');
+    }
     var _headers = {};
     if (headers) {
       for (var key in headers) {
@@ -416,7 +467,7 @@ var StompServer = function (config) {
    * @return {MsgFrame} modified frame
    * */
   this.frameParser = function (frame) {
-    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json') {
+    if (typeof frame.body === 'string' && frame.headers['content-type'] === 'application/json') {
       frame.body = JSON.parse(frame.body);
     }
     return frame;
@@ -440,8 +491,11 @@ var StompServer = function (config) {
     if (serverSide) {
       // Server takes responsibility for sending pings
       // Client should close connection on timeout
+      if (socket.heartbeatClock !== undefined) {
+        clearInterval(socket.heartbeatClock);
+      }
       socket.heartbeatClock = setInterval(function() {
-        if(socket.readyState === 1) {
+        if (socket.readyState === undefined || socket.readyState === 1) {
           self.conf.debug('PING');
           socket.send(BYTES.LF);
         }
@@ -450,15 +504,18 @@ var StompServer = function (config) {
     } else {
       // Client takes responsibility for sending pings
       // Server should close connection on timeout
-      socket.heartbeatTime = Date.now() + interval;
-      socket.heartbeatClock = setInterval(function() {
+      if (socket.heartbeatCheckClock !== undefined) {
+        clearInterval(socket.heartbeatCheckClock);
+      }
+      socket.heartbeatTime = Date.now();
+      socket.heartbeatCheckClock = setInterval(function() {
         var diff = Date.now() - socket.heartbeatTime;
         if (diff > interval + self.conf.heartbeatErrorMargin) {
           self.conf.debug('HEALTH CHECK failed! Closing', diff, interval);
+          self.heartbeatOff(socket);
           socket.close();
         } else {
           self.conf.debug('HEALTH CHECK ok!', diff, interval);
-          socket.heartbeatTime -= diff;
         }
       }, interval);
     }
@@ -471,9 +528,13 @@ var StompServer = function (config) {
    * @param {WebSocket} socket Destination WebSocket
    * */
   this.heartbeatOff = function (socket) {
-    if(socket.heartbeatClock !== undefined) {
+    if (socket.heartbeatClock !== undefined) {
       clearInterval(socket.heartbeatClock);
       delete socket.heartbeatClock;
+    }
+    if (socket.heartbeatCheckClock !== undefined) {
+      clearInterval(socket.heartbeatCheckClock);
+      delete socket.heartbeatCheckClock;
     }
   };
 
@@ -489,18 +550,29 @@ var StompServer = function (config) {
    * @private
    */
   this._checkSubMatchDest = function (sub, args) {
-    var match = true;
-    var tokens = stompUtils.tokenizeDestination(args.dest);
-    for (var t in tokens) {
-      var token = tokens[t];
-      if (sub.tokens[t] === undefined || (sub.tokens[t] !== token && sub.tokens[t] !== '*' && sub.tokens[t] !== '**')) {
-        match = false;
-        break;
-      } else if (sub.tokens[t] === '**') {
-        break;
+    return this._matchTokens(sub.tokens, stompUtils.tokenizeDestination(args.dest));
+  };
+
+
+  /**
+   * Match tokenized subscription pattern against tokenized destination.
+   * `*` matches exactly one name, `**` matches all remaining names.
+   *
+   * @param {string[]} pattern subscription tokens
+   * @param {string[]} tokens destination tokens
+   * @returns {boolean} true if pattern matches destination
+   * @private
+   */
+  this._matchTokens = function (pattern, tokens) {
+    for (var i = 0; i < pattern.length; i++) {
+      if (pattern[i] === '**') {
+        return true;
+      }
+      if (i >= tokens.length || (pattern[i] !== '*' && pattern[i] !== tokens[i])) {
+        return false;
       }
     }
-    return match;
+    return pattern.length === tokens.length;
   };
 
 
@@ -523,28 +595,44 @@ var StompServer = function (config) {
   };
 
 
-  this.parseRequest = function(socket, data) {
-    // check if it's incoming heartbeat
-    if (socket.heartbeatClock !== undefined) {
-      // beat
-      socket.heartbeatTime = Date.now();
+  /** Commands accepted before the session is connected */
+  var CONNECT_COMMANDS = ['CONNECT', 'STOMP'];
+  var CLIENT_COMMANDS = CONNECT_COMMANDS.concat(['DISCONNECT', 'SUBSCRIBE', 'UNSUBSCRIBE', 'SEND']);
 
-      // if it's ping then ignore
-      if(data === BYTES.LF) {
-        this.conf.debug('PONG');
+  this.parseRequest = function(socket, data) {
+    // any incoming data counts as a heart-beat
+    socket.heartbeatTime = Date.now();
+
+    // if it's ping then ignore
+    if (stompUtils.isHeartbeat(data)) {
+      this.conf.debug('PONG');
+      return;
+    }
+
+    var frame;
+    try {
+      frame = stompUtils.parseFrame(data, socket.stompVersion);
+      if (frame === null) {
         return;
       }
-    }
-
-    // normal data
-    var frame = stompUtils.parseFrame(data);
-    var cmdFunc = this.frameHandler[frame.command];
-    if (cmdFunc) {
+      if (CLIENT_COMMANDS.indexOf(frame.command) < 0) {
+        return 'Command not found';
+      }
+      if (!socket.stompConnected && CONNECT_COMMANDS.indexOf(frame.command) < 0) {
+        stomp.fail(socket, 'Not connected', 'CONNECT frame is required before ' + frame.command);
+        return;
+      }
       frame = this.frameParser(frame);
-      return cmdFunc(socket, frame);
+      return this.frameHandler[frame.command](socket, frame);
+    } catch (err) {
+      this.conf.debug('Frame processing error', socket.sessionId, err);
+      var receipt = frame && frame.headers ? frame.headers.receipt : undefined;
+      try {
+        stomp.fail(socket, 'Frame processing error', err && err.message ? err.message : err, receipt);
+      } catch (sendErr) {
+        this.conf.debug('Cannot send ERROR frame', sendErr);
+      }
     }
-
-    return 'Command not found';
   };
 
 };
