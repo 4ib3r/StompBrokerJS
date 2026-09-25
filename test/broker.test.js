@@ -19,18 +19,6 @@ describe('StompServer broker', function () {
     });
   }
 
-  function subscribe(client, destination, id, headers) {
-    client.send('SUBSCRIBE', Object.assign({destination: destination, id: id}, headers));
-    return delay(50);
-  }
-
-  function messages(client) {
-    return client.frames.filter(function (f) {
-      return f.command === 'MESSAGE';
-    });
-  }
-
-
   describe('connection lifecycle', function () {
     it('emits connecting with a session id when a socket opens', function () {
       var sessionId;
@@ -123,7 +111,7 @@ describe('StompServer broker', function () {
         return client.connect({'accept-version': '1.0'});
       }).then(function (connected) {
         assert.equal(connected.headers.version, '1.0');
-        return subscribe(client, '/t', 's1');
+        return client.subscribe('/t', 's1');
       }).then(function () {
         ctx.broker.send('/t', {url: 'http://x:80/'}, 'x');
         return client.waitForCommand('MESSAGE');
@@ -155,7 +143,7 @@ describe('StompServer broker', function () {
         return connectedClient();
       }).then(function (c) {
         client = c;
-        return subscribe(client, '/a', 's1');
+        return client.subscribe('/a', 's1');
       }).then(function () {
         assert.lengthOf(ctx.broker.subscribes, 1);
         client.ws.close();
@@ -189,7 +177,7 @@ describe('StompServer broker', function () {
       }).then(function (clients) {
         sender = clients[0];
         receiver = clients[1];
-        return subscribe(receiver, '/chat', 'sub-9');
+        return receiver.subscribe('/chat', 'sub-9');
       }).then(function () {
         sender.send('SEND', {destination: '/chat', custom: 'yes'}, 'hi');
         return receiver.waitForCommand('MESSAGE');
@@ -207,12 +195,12 @@ describe('StompServer broker', function () {
         return connectedClient();
       }).then(function (c) {
         client = c;
-        return subscribe(client, '/chat', 's1');
+        return client.subscribe('/chat', 's1');
       }).then(function () {
         client.send('SEND', {destination: '/chat'}, 'hi');
         return client.collect(100);
       }).then(function () {
-        assert.lengthOf(messages(client), 0);
+        assert.lengthOf(client.messages(), 0);
       });
     });
 
@@ -224,7 +212,7 @@ describe('StompServer broker', function () {
       }).then(function (clients) {
         a = clients[0];
         b = clients[1];
-        return Promise.all([subscribe(a, '/t', 'a1'), subscribe(b, '/t', 'b1')]);
+        return Promise.all([a.subscribe('/t', 'a1'), b.subscribe('/t', 'b1')]);
       }).then(function () {
         ctx.broker.send('/t', {}, 'x');
         return Promise.all([a.waitForCommand('MESSAGE'), b.waitForCommand('MESSAGE')]);
@@ -240,12 +228,12 @@ describe('StompServer broker', function () {
         return connectedClient();
       }).then(function (c) {
         client = c;
-        return Promise.all([subscribe(client, '/t', 's1'), subscribe(client, '/t.*', 's2')]);
+        return Promise.all([client.subscribe('/t', 's1'), client.subscribe('/t.*', 's2')]);
       }).then(function () {
         ctx.broker.send('/t', {}, 'x');
         return client.collect(100);
       }).then(function () {
-        assert.deepEqual(messages(client).map(function (m) {
+        assert.deepEqual(client.messages().map(function (m) {
           return m.headers.subscription;
         }), ['s1']);
       });
@@ -261,7 +249,7 @@ describe('StompServer broker', function () {
         return connectedClient();
       }).then(function (c) {
         client = c;
-        return subscribe(client, '/t', 's1');
+        return client.subscribe('/t', 's1');
       }).then(function () {
         client.send('UNSUBSCRIBE', {id: 's1'});
         return delay(50);
@@ -270,7 +258,7 @@ describe('StompServer broker', function () {
         ctx.broker.send('/t', {}, 'x');
         return client.collect(100);
       }).then(function () {
-        assert.lengthOf(messages(client), 0);
+        assert.lengthOf(client.messages(), 0);
       });
     });
 
@@ -293,7 +281,7 @@ describe('StompServer broker', function () {
       }).then(function (clients) {
         a = clients[0];
         b = clients[1];
-        return subscribe(a, '/t', 'shared-id');
+        return a.subscribe('/t', 'shared-id');
       }).then(function () {
         b.send('UNSUBSCRIBE', {id: 'shared-id'});
         return delay(50);
@@ -311,7 +299,7 @@ describe('StompServer broker', function () {
       }).then(function (clients) {
         sender = clients[0];
         receiver = clients[1];
-        return subscribe(receiver, '/t', 's1');
+        return receiver.subscribe('/t', 's1');
       }).then(function () {
         sender.send('SEND', {destination: '/t', receipt: 'secret-receipt'}, 'x');
         return receiver.waitForCommand('MESSAGE');
@@ -328,7 +316,7 @@ describe('StompServer broker', function () {
       }).then(function (clients) {
         sender = clients[0];
         receiver = clients[1];
-        return subscribe(receiver, '/t', 's1');
+        return receiver.subscribe('/t', 's1');
       }).then(function () {
         sender.send('SEND', {destination: '/t', 'message-id': 'fake', subscription: 'fake'}, 'x');
         return receiver.waitForCommand('MESSAGE');
@@ -348,7 +336,7 @@ describe('StompServer broker', function () {
         sender = clients[0];
         closing = clients[1];
         other = clients[2];
-        return Promise.all([subscribe(closing, '/t', 'c1'), subscribe(other, '/t', 'o1')]);
+        return Promise.all([closing.subscribe('/t', 'c1'), other.subscribe('/t', 'o1')]);
       }).then(function () {
         // mark the broker side socket of `closing` as closing without removing its subscription
         ctx.broker.subscribes.forEach(function (sub) {
@@ -369,13 +357,13 @@ describe('StompServer broker', function () {
         return connectedClient();
       }).then(function (c) {
         client = c;
-        return subscribe(client, '/t', 's1');
+        return client.subscribe('/t', 's1');
       }).then(function () {
         ctx.broker.send('/t', {}, 'a');
         ctx.broker.send('/t', {}, 'b');
         return client.collect(100);
       }).then(function () {
-        var ids = messages(client).map(function (m) {
+        var ids = client.messages().map(function (m) {
           return m.headers['message-id'];
         });
         assert.lengthOf(ids, 2);
@@ -461,7 +449,7 @@ describe('StompServer broker', function () {
       var headers = {foo: 'bar'};
       return ctx.start().then(function (broker) {
         return connectedClient().then(function (client) {
-          return subscribe(client, '/out', 's1').then(function () {
+          return client.subscribe('/out', 's1').then(function () {
             broker.send('/out', headers, 'body');
             return client.waitForCommand('MESSAGE');
           });
@@ -483,7 +471,7 @@ describe('StompServer broker', function () {
       var body = Buffer.from([1, 2, 3, 0, 255]);
       return ctx.start().then(function (broker) {
         return connectedClient().then(function (client) {
-          return subscribe(client, '/bin', 's1').then(function () {
+          return client.subscribe('/bin', 's1').then(function () {
             broker.send('/bin', {'content-type': 'application/octet-stream'}, body);
             return client.waitForCommand('MESSAGE');
           });
@@ -521,7 +509,7 @@ describe('StompServer broker', function () {
       }).then(function (clients) {
         sender = clients[0];
         receiver = clients[1];
-        return subscribe(receiver, '/json', 's1');
+        return receiver.subscribe('/json', 's1');
       }).then(function () {
         sender.send('SEND', {destination: '/json', 'content-type': 'application/json'}, '{"a":[1,2]}');
         return receiver.waitForCommand('MESSAGE');
@@ -534,7 +522,7 @@ describe('StompServer broker', function () {
     it('server send() of an object with application/json reaches clients as JSON', function () {
       return ctx.start().then(function (broker) {
         return connectedClient().then(function (client) {
-          return subscribe(client, '/json', 's1').then(function () {
+          return client.subscribe('/json', 's1').then(function () {
             broker.send('/json', {'content-type': 'application/json'}, '{"b":2}');
             return client.waitForCommand('MESSAGE');
           });
@@ -613,13 +601,13 @@ describe('StompServer broker', function () {
       }).then(function (clients) {
         sender = clients[0];
         receiver = clients[1];
-        return Promise.all([subscribe(receiver, '/blocked', 's1'), subscribe(receiver, '/open', 's2')]);
+        return Promise.all([receiver.subscribe('/blocked', 's1'), receiver.subscribe('/open', 's2')]);
       }).then(function () {
         sender.send('SEND', {destination: '/blocked'}, 'x');
         sender.send('SEND', {destination: '/open'}, 'y');
         return receiver.collect(100);
       }).then(function () {
-        assert.deepEqual(messages(receiver).map(function (m) {
+        assert.deepEqual(receiver.messages().map(function (m) {
           return m.body;
         }), ['y']);
       });
@@ -663,7 +651,7 @@ describe('StompServer broker', function () {
         });
         return connectedClient();
       }).then(function (client) {
-        return subscribe(client, '/news', 's1');
+        return client.subscribe('/news', 's1');
       }).then(function () {
         assert.equal(ctx.broker.subscribes[0].topic, '/tenant.news');
       });
@@ -782,7 +770,7 @@ describe('StompServer broker', function () {
       }).then(function (clients) {
         sender = clients[0];
         receiver = clients[1];
-        return subscribe(receiver, '/t', 's1');
+        return receiver.subscribe('/t', 's1');
       }).then(function () {
         sender.send('SEND', {destination: '/t'}, 'over sockjs');
         return receiver.waitForCommand('MESSAGE');

@@ -70,7 +70,6 @@ var StompServer = function (config) {
     ws.on('close', function () {
       // DISCONNECT frame already handled the graceful disconnect
       if (!ws.stompDisconnected) {
-        ws.stompDisconnected = true;
         try {
           this.onDisconnect(ws);
         } catch (err) {
@@ -143,17 +142,20 @@ var StompServer = function (config) {
    */
   function withMiddleware(command, finalHandler) {
     return function(socket, args) {
-      var handlers = (this.middleware[command.toLowerCase()] || []).slice();
-      var iter = handlers[Symbol.iterator]();
+      var handlers = this.middleware[command.toLowerCase()];
+      if (!handlers || handlers.length === 0) {
+        return finalHandler.call(this, socket, args);
+      }
+      // snapshot, handlers may change middle-ware while the chain runs
+      handlers = handlers.slice();
       var self = this;
-      var finalArgs = arguments;
+      var i = 0;
 
       function callNext() {
-        var iteration = iter.next();
-        if (iteration.done) {
-          return finalHandler.apply(self, finalArgs);
+        if (i < handlers.length) {
+          return handlers[i++](socket, args, callNext);
         }
-        return iteration.value(socket, args, callNext);
+        return finalHandler.call(self, socket, args);
       }
       return callNext();
     };
@@ -206,10 +208,8 @@ var StompServer = function (config) {
    * @property {string} dest Destination
    * @property {string} frame Message frame
    */
-  this.onSend = withMiddleware('send', function (socket, args, callback) {
-    if (typeof args.dest !== 'string' || args.dest === '') {
-      throw new Error('Message destination is required');
-    }
+  this.onSend = withMiddleware('send', function (socket, args) {
+    var destTokens = stompUtils.tokenizeDestination(args.dest);
     var bodyObj = args.frame.body;
     var frame = this.frameSerializer(args.frame);
 
@@ -241,11 +241,7 @@ var StompServer = function (config) {
       dest: args.dest
     });
 
-    this._sendToSubscriptions(socket, args, bodyObj);
-
-    if (callback) {
-      callback(true);
-    }
+    this._sendToSubscriptions(socket, args, bodyObj, destTokens);
     return true;
   });
 
@@ -338,9 +334,6 @@ var StompServer = function (config) {
    * stompServer.on(subs_id, function(msg, headers) {});
    */
   this.subscribe = function (topic, callback, headers) {
-    if (typeof topic !== 'string' || topic === '') {
-      throw new Error('Subscription destination is required');
-    }
     var id;
     if (!headers || !headers.id) {
       id = 'self_' + Math.floor(Math.random() * 99999999999);
@@ -382,14 +375,11 @@ var StompServer = function (config) {
    *
    * @param {object} socket websocket to send the message on
    * @param {string} args onSend args
-   * @param {*} [bodyObj] parsed body passed to server-side subscribers
+   * @param {*} bodyObj parsed body passed to server-side subscribers
+   * @param {string[]} destTokens tokenized destination
    * @private
    */
-  this._sendToSubscriptions = function (socket, args, bodyObj) {
-    if (bodyObj === undefined) {
-      bodyObj = args.frame.body;
-    }
-    var destTokens = stompUtils.tokenizeDestination(args.dest);
+  this._sendToSubscriptions = function (socket, args, bodyObj, destTokens) {
     // copy, callbacks may (un)subscribe while we iterate
     var subscribes = this.subscribes.slice();
     for (var i = 0; i < subscribes.length; i++) {
@@ -421,9 +411,6 @@ var StompServer = function (config) {
    * @param {string} body Message body
    */
   this.send = function (topic, headers, body) {
-    if (typeof topic !== 'string' || topic === '') {
-      throw new Error('Message destination is required');
-    }
     var _headers = {};
     if (headers) {
       for (var key in headers) {
@@ -491,11 +478,9 @@ var StompServer = function (config) {
     if (serverSide) {
       // Server takes responsibility for sending pings
       // Client should close connection on timeout
-      if (socket.heartbeatClock !== undefined) {
-        clearInterval(socket.heartbeatClock);
-      }
+      clearClock(socket, 'heartbeatClock');
       socket.heartbeatClock = setInterval(function() {
-        if (socket.readyState === undefined || socket.readyState === 1) {
+        if (stompUtils.isOpen(socket)) {
           self.conf.debug('PING');
           socket.send(BYTES.LF);
         }
@@ -504,9 +489,7 @@ var StompServer = function (config) {
     } else {
       // Client takes responsibility for sending pings
       // Server should close connection on timeout
-      if (socket.heartbeatCheckClock !== undefined) {
-        clearInterval(socket.heartbeatCheckClock);
-      }
+      clearClock(socket, 'heartbeatCheckClock');
       socket.heartbeatTime = Date.now();
       socket.heartbeatCheckClock = setInterval(function() {
         var diff = Date.now() - socket.heartbeatTime;
@@ -528,30 +511,18 @@ var StompServer = function (config) {
    * @param {WebSocket} socket Destination WebSocket
    * */
   this.heartbeatOff = function (socket) {
-    if (socket.heartbeatClock !== undefined) {
-      clearInterval(socket.heartbeatClock);
-      delete socket.heartbeatClock;
-    }
-    if (socket.heartbeatCheckClock !== undefined) {
-      clearInterval(socket.heartbeatCheckClock);
-      delete socket.heartbeatCheckClock;
-    }
+    clearClock(socket, 'heartbeatClock');
+    clearClock(socket, 'heartbeatCheckClock');
   };
+
+  function clearClock(socket, key) {
+    if (socket[key] !== undefined) {
+      clearInterval(socket[key]);
+      delete socket[key];
+    }
+  }
 
   //</editor-fold>
-
-
-  /**
-   * Test if the input subscriber has subscribed to the target destination.
-   *
-   * @param sub the subscriber
-   * @param args onSend args
-   * @returns {boolean} true if the input subscription matches destination
-   * @private
-   */
-  this._checkSubMatchDest = function (sub, args) {
-    return this._matchTokens(sub.tokens, stompUtils.tokenizeDestination(args.dest));
-  };
 
 
   /**
@@ -597,25 +568,20 @@ var StompServer = function (config) {
 
   /** Commands accepted before the session is connected */
   var CONNECT_COMMANDS = ['CONNECT', 'STOMP'];
-  var CLIENT_COMMANDS = CONNECT_COMMANDS.concat(['DISCONNECT', 'SUBSCRIBE', 'UNSUBSCRIBE', 'SEND']);
 
   this.parseRequest = function(socket, data) {
     // any incoming data counts as a heart-beat
     socket.heartbeatTime = Date.now();
 
-    // if it's ping then ignore
-    if (stompUtils.isHeartbeat(data)) {
-      this.conf.debug('PONG');
-      return;
-    }
-
     var frame;
     try {
       frame = stompUtils.parseFrame(data, socket.stompVersion);
       if (frame === null) {
+        // only EOLs, it's ping
+        this.conf.debug('PONG');
         return;
       }
-      if (CLIENT_COMMANDS.indexOf(frame.command) < 0) {
+      if (!Object.prototype.hasOwnProperty.call(this.frameHandler, frame.command)) {
         return 'Command not found';
       }
       if (!socket.stompConnected && CONNECT_COMMANDS.indexOf(frame.command) < 0) {
@@ -627,11 +593,7 @@ var StompServer = function (config) {
     } catch (err) {
       this.conf.debug('Frame processing error', socket.sessionId, err);
       var receipt = frame && frame.headers ? frame.headers.receipt : undefined;
-      try {
-        stomp.fail(socket, 'Frame processing error', err && err.message ? err.message : err, receipt);
-      } catch (sendErr) {
-        this.conf.debug('Cannot send ERROR frame', sendErr);
-      }
+      stomp.fail(socket, 'Frame processing error', stomp.errorText(err), receipt);
     }
   };
 

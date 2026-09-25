@@ -140,6 +140,19 @@ RawClient.prototype.collect = function (ms) {
   });
 };
 
+/** Send SUBSCRIBE and give the broker a moment to register it */
+RawClient.prototype.subscribe = function (destination, id, headers) {
+  this.send('SUBSCRIBE', Object.assign({destination: destination, id: id}, headers));
+  return delay(50);
+};
+
+/** All MESSAGE frames received so far */
+RawClient.prototype.messages = function () {
+  return this.frames.filter(function (f) {
+    return f.command === 'MESSAGE';
+  });
+};
+
 RawClient.prototype.connect = function (headers) {
   var self = this;
   return this.open().then(function () {

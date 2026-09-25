@@ -12,58 +12,19 @@ var StompServer = require('../stompServer');
 var support = require('./support/raw-client');
 
 var buildFrame = support.buildFrame;
-var RawClient = support.RawClient;
 var delay = support.delay;
 
 
 describe('Reported issues', function () {
-  var server;
-  var stompServer;
-  var clients;
-  var port;
-
-  function startBroker(config) {
-    server = http.createServer();
-    stompServer = new StompServer(Object.assign({server: server}, config));
-    return new Promise(function (resolve) {
-      server.listen(0, function () {
-        port = server.address().port;
-        resolve(stompServer);
-      });
-    });
-  }
-
-  function newClient(path) {
-    var client = new RawClient(port, path);
-    clients.push(client);
-    return client;
-  }
-
-  beforeEach(function () {
-    clients = [];
-    server = null;
-  });
-
-  afterEach(function (done) {
-    clients.forEach(function (c) {
-      c.close();
-    });
-    if (server) {
-      server.close(function () {
-        done();
-      });
-    } else {
-      done();
-    }
-  });
+  var ctx = support.useBroker();
 
 
   describe('#33 heartbeat', function () {
     this.timeout(5000);
 
     it('negotiates both heart-beat directions when client and server support them', function () {
-      return startBroker({heartbeat: [500, 500]}).then(function () {
-        return newClient().connect({'heart-beat': '500,500'});
+      return ctx.start({heartbeat: [500, 500]}).then(function () {
+        return ctx.client().connect({'heart-beat': '500,500'});
       }).then(function (connected) {
         assert.equal(connected.headers['heart-beat'], '500,500');
       });
@@ -71,8 +32,8 @@ describe('Reported issues', function () {
 
     it('server sends heart-beats when client asks for them', function () {
       var client;
-      return startBroker({heartbeat: [500, 500]}).then(function () {
-        client = newClient();
+      return ctx.start({heartbeat: [500, 500]}).then(function () {
+        client = ctx.client();
         return client.connect({'heart-beat': '500,500'});
       }).then(function () {
         return client.waitForCommand('HEARTBEAT', 1500);
@@ -81,8 +42,8 @@ describe('Reported issues', function () {
 
     it('server sends heart-beats when only server→client direction is possible', function () {
       var client;
-      return startBroker({heartbeat: [500, 0]}).then(function () {
-        client = newClient();
+      return ctx.start({heartbeat: [500, 0]}).then(function () {
+        client = ctx.client();
         return client.connect({'heart-beat': '0,500'});
       }).then(function (connected) {
         assert.equal(connected.headers['heart-beat'], '500,0');
@@ -93,8 +54,8 @@ describe('Reported issues', function () {
     it('does not close a connection whose client beats on time', function () {
       var client;
       var beat;
-      return startBroker({heartbeat: [0, 300], heartbeatErrorMargin: 200}).then(function () {
-        client = newClient();
+      return ctx.start({heartbeat: [0, 300], heartbeatErrorMargin: 200}).then(function () {
+        client = ctx.client();
         return client.connect({'heart-beat': '300,0'});
       }).then(function () {
         beat = setInterval(function () {
@@ -112,14 +73,13 @@ describe('Reported issues', function () {
   describe('#32 MESSAGE headers', function () {
     it('MESSAGE sent by server contains destination header', function () {
       var client;
-      return startBroker().then(function () {
-        client = newClient();
+      return ctx.start().then(function () {
+        client = ctx.client();
         return client.connect();
       }).then(function () {
-        client.send('SUBSCRIBE', {destination: '/topic.a', id: 'sub-1'});
-        return delay(50);
+        return client.subscribe('/topic.a', 'sub-1');
       }).then(function () {
-        stompServer.send('/topic.a', {}, 'hello');
+        ctx.broker.send('/topic.a', {}, 'hello');
         return client.waitForCommand('MESSAGE');
       }).then(function (msg) {
         assert.equal(msg.headers.destination, '/topic.a');
@@ -130,14 +90,13 @@ describe('Reported issues', function () {
 
     it('MESSAGE contains a message-id header', function () {
       var client;
-      return startBroker().then(function () {
-        client = newClient();
+      return ctx.start().then(function () {
+        client = ctx.client();
         return client.connect();
       }).then(function () {
-        client.send('SUBSCRIBE', {destination: '/topic.a', id: 'sub-1'});
-        return delay(50);
+        return client.subscribe('/topic.a', 'sub-1');
       }).then(function () {
-        stompServer.send('/topic.a', {}, 'hello');
+        ctx.broker.send('/topic.a', {}, 'hello');
         return client.waitForCommand('MESSAGE');
       }).then(function (msg) {
         assert.isString(msg.headers['message-id']);
@@ -147,14 +106,14 @@ describe('Reported issues', function () {
 
     it('each server-side subscriber receives its own subscription id', function () {
       var received = [];
-      return startBroker().then(function () {
-        stompServer.subscribe('/t', function (msg, headers) {
+      return ctx.start().then(function () {
+        ctx.broker.subscribe('/t', function (msg, headers) {
           received.push(headers);
         }, {id: 'first'});
-        stompServer.subscribe('/t', function (msg, headers) {
+        ctx.broker.subscribe('/t', function (msg, headers) {
           received.push(headers);
         }, {id: 'second'});
-        var client = newClient();
+        var client = ctx.client();
         return client.connect().then(function () {
           client.send('SEND', {destination: '/t'}, 'x');
           return delay(100);
@@ -177,19 +136,19 @@ describe('Reported issues', function () {
 
     it('accepts STOMP connections upgraded manually on a shared http server', function () {
       var broker = new StompServer({protocolConfig: {noServer: true}});
-      server = http.createServer();
-      server.on('upgrade', function (request, socket, head) {
+      ctx.server = http.createServer();
+      ctx.server.on('upgrade', function (request, socket, head) {
         broker.socket.handleUpgrade(request, socket, head, function (ws) {
           broker.socket.emit('connection', ws, request);
         });
       });
       return new Promise(function (resolve) {
-        server.listen(0, function () {
-          port = server.address().port;
+        ctx.server.listen(0, function () {
+          ctx.port = ctx.server.address().port;
           resolve();
         });
       }).then(function () {
-        return newClient().connect();
+        return ctx.client().connect();
       }).then(function (connected) {
         assert.equal(connected.command, 'CONNECTED');
       });
@@ -206,14 +165,13 @@ describe('Reported issues', function () {
       var client;
       // eslint-disable-next-line no-extend-native
       Array.prototype.indexOfKey = function () {};
-      return startBroker().then(function () {
-        client = newClient();
+      return ctx.start().then(function () {
+        client = ctx.client();
         return client.connect();
       }).then(function () {
-        client.send('SUBSCRIBE', {destination: '/echo', id: 's1'});
-        return delay(50);
+        return client.subscribe('/echo', 's1');
       }).then(function () {
-        stompServer.send('/echo', {}, 'Bonjour');
+        ctx.broker.send('/echo', {}, 'Bonjour');
         return client.waitForCommand('MESSAGE');
       }).then(function (msg) {
         assert.equal(msg.body, 'Bonjour');
@@ -226,13 +184,12 @@ describe('Reported issues', function () {
     function roundTrip(body, headers) {
       var sender;
       var receiver;
-      return startBroker().then(function () {
-        sender = newClient();
-        receiver = newClient();
+      return ctx.start().then(function () {
+        sender = ctx.client();
+        receiver = ctx.client();
         return Promise.all([sender.connect(), receiver.connect()]);
       }).then(function () {
-        receiver.send('SUBSCRIBE', {destination: '/data', id: 's1'});
-        return delay(50);
+        return receiver.subscribe('/data', 's1');
       }).then(function () {
         sender.send('SEND', Object.assign({destination: '/data'}, headers), body);
         return receiver.waitForCommand('MESSAGE');
@@ -242,14 +199,13 @@ describe('Reported issues', function () {
     it('keeps the whole body of a server-sent message', function () {
       var client;
       var body = JSON.stringify({topic: 'xxx', data: {a: 5}}) + '0123456789';
-      return startBroker().then(function () {
-        client = newClient();
+      return ctx.start().then(function () {
+        client = ctx.client();
         return client.connect();
       }).then(function () {
-        client.send('SUBSCRIBE', {destination: 'xxx', id: 's1'});
-        return delay(50);
+        return client.subscribe('xxx', 's1');
       }).then(function () {
-        stompServer.send('xxx', {}, body);
+        ctx.broker.send('xxx', {}, body);
         return client.waitForCommand('MESSAGE');
       }).then(function (msg) {
         assert.equal(msg.body, body);
@@ -275,8 +231,8 @@ describe('Reported issues', function () {
 
   describe('#24 subscribe event', function () {
     it('emits subscribe when a client subscribes, without any message sent', function (done) {
-      startBroker().then(function () {
-        stompServer.on('subscribe', function (sub) {
+      ctx.start().then(function () {
+        ctx.broker.on('subscribe', function (sub) {
           try {
             assert.equal(sub.topic, '/one.two');
             assert.equal(sub.id, 'sub-1');
@@ -286,7 +242,7 @@ describe('Reported issues', function () {
             done(e);
           }
         });
-        var client = newClient();
+        var client = ctx.client();
         return client.connect().then(function () {
           client.send('SUBSCRIBE', {destination: '/one.two', id: 'sub-1'});
         });
@@ -298,14 +254,14 @@ describe('Reported issues', function () {
   describe('#19 connect validation', function () {
     it('rejecting connect middleware sends ERROR and closes the socket', function () {
       var client;
-      return startBroker().then(function () {
-        stompServer.addMiddleware('connect', function (socket, args, next) {
+      return ctx.start().then(function () {
+        ctx.broker.addMiddleware('connect', function (socket, args, next) {
           if (args.headers.passcode !== 'secret') {
             return false;
           }
           return next();
         });
-        client = newClient();
+        client = ctx.client();
         return client.open();
       }).then(function () {
         client.send('CONNECT', {'accept-version': '1.1', passcode: 'wrong'});
@@ -316,11 +272,11 @@ describe('Reported issues', function () {
     });
 
     it('accepting connect middleware sends CONNECTED', function () {
-      return startBroker().then(function () {
-        stompServer.addMiddleware('connect', function (socket, args, next) {
+      return ctx.start().then(function () {
+        ctx.broker.addMiddleware('connect', function (socket, args, next) {
           return args.headers.passcode === 'secret' ? next() : false;
         });
-        return newClient().connect({passcode: 'secret'});
+        return ctx.client().connect({passcode: 'secret'});
       });
     });
   });
@@ -328,27 +284,7 @@ describe('Reported issues', function () {
 
 
 describe('Review findings', function () {
-  var server;
-  var stompServer;
-  var clients;
-  var port;
-
-  function startBroker(config) {
-    server = http.createServer();
-    stompServer = new StompServer(Object.assign({server: server}, config));
-    return new Promise(function (resolve) {
-      server.listen(0, function () {
-        port = server.address().port;
-        resolve(stompServer);
-      });
-    });
-  }
-
-  function newClient() {
-    var client = new RawClient(port);
-    clients.push(client);
-    return client;
-  }
+  var ctx = support.useBroker();
 
   /**
    * Fails the test when the broker throws out of a socket event handler,
@@ -379,26 +315,12 @@ describe('Review findings', function () {
     });
   }
 
-  beforeEach(function () {
-    clients = [];
-  });
-
-  afterEach(function (done) {
-    clients.forEach(function (c) {
-      c.close();
-    });
-    server.close(function () {
-      done();
-    });
-  });
-
-
   describe('robustness', function () {
     it('invalid JSON body does not crash the broker', function () {
       var client;
       return expectNoUncaught(function () {
-        return startBroker().then(function () {
-          client = newClient();
+        return ctx.start().then(function () {
+          client = ctx.client();
           return client.connect();
         }).then(function () {
           client.send('SEND', {destination: '/a', 'content-type': 'application/json'}, '{bad');
@@ -410,9 +332,9 @@ describe('Review findings', function () {
     it('SEND without destination does not crash the broker', function () {
       var client;
       return expectNoUncaught(function () {
-        return startBroker().then(function () {
-          stompServer.subscribe('/a', function () {});
-          client = newClient();
+        return ctx.start().then(function () {
+          ctx.broker.subscribe('/a', function () {});
+          client = ctx.client();
           return client.connect();
         }).then(function () {
           client.send('SEND', {}, 'x');
@@ -424,8 +346,8 @@ describe('Review findings', function () {
     it('SUBSCRIBE without destination does not crash the broker', function () {
       var client;
       return expectNoUncaught(function () {
-        return startBroker().then(function () {
-          client = newClient();
+        return ctx.start().then(function () {
+          client = ctx.client();
           return client.connect();
         }).then(function () {
           client.send('SUBSCRIBE', {id: 's1'});
@@ -436,8 +358,8 @@ describe('Review findings', function () {
 
     it('socket error without an error listener does not crash the broker', function () {
       return expectNoUncaught(function () {
-        return startBroker().then(function () {
-          var client = newClient();
+        return ctx.start().then(function () {
+          var client = ctx.client();
           return client.connect().then(function () {
             // invalid WebSocket frame (reserved opcode) makes `ws` emit 'error'
             client.ws._socket.write(Buffer.from([0x83, 0x00]));
@@ -449,8 +371,8 @@ describe('Review findings', function () {
 
     it('accepts frames preceded by heart-beat EOLs', function () {
       var client;
-      return startBroker().then(function () {
-        client = newClient();
+      return ctx.start().then(function () {
+        client = ctx.client();
         return client.open();
       }).then(function () {
         client.ws.send('\n' + buildFrame('CONNECT', {'accept-version': '1.1'}));
@@ -463,8 +385,8 @@ describe('Review findings', function () {
   describe('receipts', function () {
     it('SEND with receipt header gets a RECEIPT', function () {
       var client;
-      return startBroker().then(function () {
-        client = newClient();
+      return ctx.start().then(function () {
+        client = ctx.client();
         return client.connect();
       }).then(function () {
         client.send('SEND', {destination: '/a', receipt: 'r-1'}, 'x');
@@ -476,8 +398,8 @@ describe('Review findings', function () {
 
     it('DISCONNECT without receipt header does not send receipt-id:undefined', function () {
       var client;
-      return startBroker().then(function () {
-        client = newClient();
+      return ctx.start().then(function () {
+        client = ctx.client();
         return client.connect();
       }).then(function () {
         client.send('DISCONNECT', {});
@@ -492,11 +414,11 @@ describe('Review findings', function () {
     it('emits disconnected only once per connection', function () {
       var count = 0;
       var client;
-      return startBroker().then(function () {
-        stompServer.on('disconnected', function () {
+      return ctx.start().then(function () {
+        ctx.broker.on('disconnected', function () {
           count++;
         });
-        client = newClient();
+        client = ctx.client();
         return client.connect();
       }).then(function () {
         client.send('DISCONNECT', {receipt: 'bye'});
@@ -514,19 +436,16 @@ describe('Review findings', function () {
   describe('destination matching', function () {
     function delivered(subscription, destination) {
       var client;
-      return startBroker().then(function () {
-        client = newClient();
+      return ctx.start().then(function () {
+        client = ctx.client();
         return client.connect();
       }).then(function () {
-        client.send('SUBSCRIBE', {destination: subscription, id: 's1'});
-        return delay(50);
+        return client.subscribe(subscription, 's1');
       }).then(function () {
-        stompServer.send(destination, {}, 'x');
+        ctx.broker.send(destination, {}, 'x');
         return client.collect(100);
-      }).then(function (frames) {
-        return frames.some(function (f) {
-          return f.command === 'MESSAGE';
-        });
+      }).then(function () {
+        return client.messages().length > 0;
       });
     }
 
