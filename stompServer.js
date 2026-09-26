@@ -7,7 +7,8 @@ var FrameDecoder    = require('./lib/parser').FrameDecoder;
 var Frame           = require('./lib/frame');
 var StompError      = require('./lib/errors').StompError;
 var Transactions    = require('./lib/transactions');
-var BYTES           = require('./lib/bytes');
+var Session         = require('./lib/session');
+var SubscriptionRegistry = require('./lib/subscription-registry');
 
 var protocolAdapter = require('./lib/adapter');
 var buildConfig     = require('./lib/config');
@@ -50,9 +51,9 @@ var StompServer = function (config) {
 
   this.conf = buildConfig(config);
 
-  this.subscribes = [];
-  // sessionId -> Map(subscription id -> subscription), mirrors this.subscribes
-  this._sessionSubscriptions = new Map();
+  this._registry = new SubscriptionRegistry();
+  /** sessions of open connections, by id */
+  this._sessions = new Map();
   this.middleware = {};
   this.frameHandler = new stomp.FrameHandler(this);
 
@@ -74,31 +75,31 @@ var StompServer = function (config) {
    * @property {string} sessionId
    */
   this.socket.on('connection', function (ws) {
-    ws.sessionId = stompUtils.genId();
-    ws.decoder = this._createDecoder();
-    ws.transactions = this._createTransactions();
+    var session = this._createSession(ws);
+    this._sessions.set(session.sessionId, session);
     if (limits.connectTimeout !== Infinity) {
-      ws.connectTimer = setTimeout(function () {
-        if (!ws.stompConnected) {
-          this.conf.debug('CONNECT timeout', ws.sessionId);
-          stomp.fail(ws, 'CONNECTION ERROR', 'CONNECT frame not received in time');
+      session.connectTimer = setTimeout(function () {
+        if (session.state === Session.STATE.OPEN) {
+          this.conf.debug('CONNECT timeout', session.sessionId);
+          stomp.fail(session, 'CONNECTION ERROR', 'CONNECT frame not received in time');
         }
       }.bind(this), limits.connectTimeout);
     }
 
-    this.emit('connecting', ws.sessionId);
-    this.conf.debug('Connect', ws.sessionId);
+    this.emit('connecting', session.sessionId);
+    this.conf.debug('Connect', session.sessionId);
 
-    ws.on('message', this.parseRequest.bind(this, ws));
+    ws.on('message', this.parseRequest.bind(this, session));
     ws.on('close', function () {
-      ws.stompClosed = true;
+      session.state = Session.STATE.CLOSED;
+      this._sessions.delete(session.sessionId);
       // DISCONNECT frame may already have handled the graceful disconnect
-      if (!ws.stompDisconnected) {
+      if (!session.disconnected) {
         stomp.whenDone(function () {
-          return this.onDisconnect(ws);
+          return this.onDisconnect(session);
         }.bind(this), function () {}, this._emitError.bind(this));
       }
-      this.afterConnectionClose(ws);
+      this.afterConnectionClose(session);
     }.bind(this));
     ws.on('error', function (err) {
       this.conf.debug(err);
@@ -106,18 +107,31 @@ var StompServer = function (config) {
     }.bind(this));
   }.bind(this));
 
-  /** @private */
-  this._createDecoder = function () {
-    return new FrameDecoder({
-      maxFrameSize: limits.maxFrameSize,
-      maxHeaders: limits.maxHeaders,
-      maxHeaderLength: limits.maxHeaderLength
-    });
-  };
+  /**
+   * All subscriptions (read-only snapshot, in subscription order)
+   * @name StompServer#subscribes
+   * @type {object[]}
+   */
+  Object.defineProperty(this, 'subscribes', {
+    get: function () {
+      return this._registry.all();
+    }
+  });
 
-  /** @private */
-  this._createTransactions = function () {
-    return new Transactions(limits.maxTransactions, limits.maxTransactionBytes);
+  /**
+   * Session for a transport connection
+   * @private
+   */
+  this._createSession = function (connection) {
+    return new Session(connection, {
+      id: stompUtils.genId(),
+      decoder: new FrameDecoder({
+        maxFrameSize: limits.maxFrameSize,
+        maxHeaders: limits.maxHeaders,
+        maxHeaderLength: limits.maxHeaderLength
+      }),
+      transactions: new Transactions(limits.maxTransactions, limits.maxTransactionBytes)
+    });
   };
 
   /**
@@ -241,14 +255,10 @@ var StompServer = function (config) {
    * @property {object} headers
    */
   this.onClientConnected = withMiddleware('connect', function (socket, args) {
-    if (socket.stompClosed) {
+    if (socket.state === Session.STATE.CLOSED) {
       return false;
     }
-    socket.clientHeartbeat = {
-      client: args.heartbeat[0],
-      server: args.heartbeat[1]
-    };
-    this.conf.debug('CONNECT', socket.sessionId, socket.clientHeartbeat, redactCredentials(args.headers));
+    this.conf.debug('CONNECT', socket.sessionId, args.heartbeat, redactCredentials(args.headers));
     this.emit('connected', socket.sessionId, args.headers);
     return true;
   });
@@ -262,10 +272,10 @@ var StompServer = function (config) {
    * */
   this.onDisconnect = withMiddleware('disconnect', function (socket /*, receiptId*/) {
     // DISCONNECT frame and socket close may both get here, emit only once
-    if (socket.stompDisconnected) {
+    if (socket.disconnected) {
       return true;
     }
-    socket.stompDisconnected = true;
+    socket.disconnected = true;
     this.afterConnectionClose(socket);
     this.conf.debug('DISCONNECT', socket.sessionId);
     this.emit('disconnected', socket.sessionId);
@@ -282,10 +292,12 @@ var StompServer = function (config) {
    * @property {string} frame Message frame
    */
   this.onSend = withMiddleware('send', function (socket, args) {
-    if (socket !== selfSocket && !isActive(socket)) {
-      return false;
-    }
+    // a SEND received before the connection ended is still delivered, but
+    // not one of a transaction that was aborted when the session ended
     if (args.transaction !== undefined) {
+      if (!socket.isActive()) {
+        return false;
+      }
       // delivered on COMMIT; validate now so that COMMIT can't fail half-way
       stompUtils.tokenizeDestination(args.dest);
       socket.transactions.add(args.transaction, args, args.frame.body);
@@ -363,7 +375,7 @@ var StompServer = function (config) {
 
   /** Start a transaction (BEGIN) */
   this.onBegin = withMiddleware('begin', function (socket, args) {
-    if (!isActive(socket)) {
+    if (!socket.isActive()) {
       return false;
     }
     socket.transactions.begin(args.transaction);
@@ -372,7 +384,7 @@ var StompServer = function (config) {
 
   /** Deliver the messages of a transaction, in order (COMMIT) */
   this.onCommit = withMiddleware('commit', function (socket, args) {
-    if (!isActive(socket)) {
+    if (!socket.isActive()) {
       return false;
     }
     var messages = socket.transactions.commit(args.transaction);
@@ -384,7 +396,7 @@ var StompServer = function (config) {
 
   /** Drop the messages of a transaction (ABORT) */
   this.onAbort = withMiddleware('abort', function (socket, args) {
-    if (!isActive(socket)) {
+    if (!socket.isActive()) {
       return false;
     }
     socket.transactions.abort(args.transaction);
@@ -397,14 +409,11 @@ var StompServer = function (config) {
    * they don't change what is delivered; middle-ware can act on them.
    */
   function acknowledge(socket, args) {
-    if (!isActive(socket)) {
+    if (!socket.isActive()) {
       return false;
     }
-    if (args.subscription !== undefined) {
-      var sessionSubs = this._sessionSubscriptions.get(socket.sessionId);
-      if (sessionSubs === undefined || !sessionSubs.has(args.subscription)) {
-        throw new StompError('No subscription ' + args.subscription);
-      }
+    if (args.subscription !== undefined && this._registry.get(socket.sessionId, args.subscription) === undefined) {
+      throw new StompError('No subscription ' + args.subscription);
     }
     if (args.transaction !== undefined) {
       openTransaction(socket, args.transaction);
@@ -447,14 +456,13 @@ var StompServer = function (config) {
    */
   this.onSubscribe = withMiddleware('subscribe', function (socket, args) {
     // the connection may have ended while (async) middle-ware was deciding
-    if (!isActive(socket)) {
+    if (!socket.isActive()) {
       return false;
     }
-    var sessionSubs = this._sessionSubscriptions.get(socket.sessionId);
-    if (sessionSubs !== undefined && sessionSubs.has(args.id)) {
+    if (this._registry.get(socket.sessionId, args.id) !== undefined) {
       throw new StompError('Subscription id ' + args.id + ' is already in use');
     }
-    if (sessionSubs !== undefined && sessionSubs.size >= this.conf.limits.maxSubscriptions) {
+    if (this._registry.countSession(socket.sessionId) >= this.conf.limits.maxSubscriptions) {
       throw new StompError('Too many subscriptions');
     }
     var sub = {
@@ -464,38 +472,11 @@ var StompServer = function (config) {
       tokens: stompUtils.tokenizeDestination(args.dest),
       socket: socket
     };
-    this._addSubscription(sub);
+    this._registry.add(sub);
     this.emit('subscribe', sub);
     this.conf.debug('Server subscribe', args.id, args.dest);
     return true;
   });
-
-
-  /** True while commands of the connection may still take effect */
-  function isActive(socket) {
-    return !socket.stompClosed && !socket.stompDisconnecting && stompUtils.isOpen(socket);
-  }
-
-  /** @private */
-  this._addSubscription = function (sub) {
-    var sessionSubs = this._sessionSubscriptions.get(sub.sessionId);
-    if (sessionSubs === undefined) {
-      sessionSubs = new Map();
-      this._sessionSubscriptions.set(sub.sessionId, sessionSubs);
-    }
-    sessionSubs.set(sub.id, sub);
-    this.subscribes.push(sub);
-  };
-
-  /** @private */
-  this._removeSubscription = function (sub) {
-    var sessionSubs = this._sessionSubscriptions.get(sub.sessionId);
-    sessionSubs.delete(sub.id);
-    if (sessionSubs.size === 0) {
-      this._sessionSubscriptions.delete(sub.sessionId);
-    }
-    this.subscribes.splice(this.subscribes.indexOf(sub), 1);
-  };
 
 
   /**
@@ -511,12 +492,10 @@ var StompServer = function (config) {
    * @return {boolean}
    */
   this.onUnsubscribe = withMiddleware('unsubscribe', function (socket, subId) {
-    var sessionSubs = this._sessionSubscriptions.get(socket.sessionId);
-    var sub = sessionSubs !== undefined ? sessionSubs.get(subId) : undefined;
+    var sub = this._registry.remove(socket.sessionId, subId);
     if (sub === undefined) {
       return false;
     }
-    this._removeSubscription(sub);
     this.emit('unsubscribe', sub);
     return true;
   });
@@ -565,17 +544,13 @@ var StompServer = function (config) {
     } else {
       id = headers.id;
     }
-    var sessionSubs = this._sessionSubscriptions.get(selfSocket.sessionId);
-    if (sessionSubs !== undefined && sessionSubs.has(id)) {
-      throw new Error('Subscription id ' + id + ' is already in use');
-    }
     var sub = {
       topic: topic,
       tokens: stompUtils.tokenizeDestination(topic),
       id: id,
       sessionId: selfSocket.sessionId
     };
-    this._addSubscription(sub);
+    this._registry.add(sub);
     this.emit('subscribe', sub);
     if (callback) {
       this.on(id, callback);
@@ -609,23 +584,23 @@ var StompServer = function (config) {
    * @private
    */
   this._sendToSubscriptions = function (socket, args, bodyObj, destTokens) {
-    // copy, callbacks may (un)subscribe while we iterate
-    var subscribes = this.subscribes.slice();
+    // a new array: callbacks may (un)subscribe while we iterate
+    var subscribes = this._registry.match(destTokens);
     // serialized once, only the subscription header differs per subscriber
     var message = new Frame.MessageTemplate(args.frame.headers, args.frame.body);
     for (var i = 0; i < subscribes.length; i++) {
       var sub = subscribes[i];
-      if (socket.sessionId === sub.sessionId || !this._matchTokens(sub.tokens, destTokens)) {
+      if (socket.sessionId === sub.sessionId) {
         continue;
       }
-      var sock = sub.socket;
-      if (sock === undefined) {
+      var session = sub.socket;
+      if (session === undefined) {
         this.emit(sub.id, bodyObj(), Object.assign({}, args.frame.headers, {subscription: sub.id}));
-      } else if (stompUtils.isOpen(sock)) {
-        if ((sock.bufferedAmount || 0) > this.conf.limits.maxBufferedAmount) {
-          this._slowConsumer(sock, sub, args.frame.headers);
+      } else if (session.isOpen()) {
+        if (session.bufferedAmount > this.conf.limits.maxBufferedAmount) {
+          this._slowConsumer(session, sub, args.frame.headers);
         } else {
-          sock.send(message.render(sock.stompVersion, sub.id));
+          session.send(message.render(session.version, sub.id));
         }
       }
     }
@@ -723,127 +698,82 @@ var StompServer = function (config) {
   //</editor-fold>
 
 
-  //<editor-fold defaultstate="collapsed" desc="Heartbeat">
-
   /**
-   * Heart-beat: Turn On for given socket
+   * The session ended (DISCONNECT or connection closed): drop its
+   * subscriptions and transactions, stop its timers.
    *
-   * @param {WebSocket} socket Destination WebSocket
-   * @param {number} interval Heart-beat interval
-   * @param {boolean} serverSide If true then server is responsible for sending pings
-   * */
-  this.heartbeatOn = function (socket, interval, serverSide) {
-    var self = this;
-
-    if (serverSide) {
-      // Server takes responsibility for sending pings
-      // Client should close connection on timeout
-      clearClock(socket, 'heartbeatClock');
-      socket.heartbeatClock = setInterval(function() {
-        if (stompUtils.isOpen(socket)) {
-          socket.send(BYTES.LF);
-        }
-      }, interval);
-
-    } else {
-      // Client takes responsibility for sending pings
-      // Server should close connection on timeout
-      clearClock(socket, 'heartbeatCheckClock');
-      socket.heartbeatTime = Date.now();
-      socket.heartbeatCheckClock = setInterval(function() {
-        var diff = Date.now() - socket.heartbeatTime;
-        if (diff > interval + self.conf.heartbeatErrorMargin) {
-          self.conf.debug('HEALTH CHECK failed! Closing', diff, interval);
-          self.heartbeatOff(socket);
-          socket.close();
-        }
-      }, interval);
-    }
-  };
-
-
-  /**
-   * Heart-beat: Turn Off for given socket
-   *
-   * @param {WebSocket} socket Destination WebSocket
-   * */
-  this.heartbeatOff = function (socket) {
-    clearClock(socket, 'heartbeatClock');
-    clearClock(socket, 'heartbeatCheckClock');
-  };
-
-  function clearClock(socket, key) {
-    if (socket[key] !== undefined) {
-      clearInterval(socket[key]);
-      delete socket[key];
-    }
-  }
-
-  //</editor-fold>
-
-
-  /**
-   * Match tokenized subscription pattern against tokenized destination.
-   * `*` matches exactly one name, `**` matches all remaining names.
-   *
-   * @param {string[]} pattern subscription tokens
-   * @param {string[]} tokens destination tokens
-   * @returns {boolean} true if pattern matches destination
-   * @private
+   * @param {Session} session
    */
-  this._matchTokens = function (pattern, tokens) {
-    for (var i = 0; i < pattern.length; i++) {
-      if (pattern[i] === '**') {
-        return true;
-      }
-      if (i >= tokens.length || (pattern[i] !== '*' && pattern[i] !== tokens[i])) {
-        return false;
-      }
-    }
-    return pattern.length === tokens.length;
+  this.afterConnectionClose = function (session) {
+    this._registry.removeSession(session.sessionId);
+    session.cleanup();
   };
 
 
   /**
-   * After connection close
-   *
-   * @param socket WebSocket connection that has been closed and is dying
-   */
-  this.afterConnectionClose = function (socket) {
-    // remove from subscribes, rebuilding the list once
-    if (this._sessionSubscriptions.delete(socket.sessionId)) {
-      this.subscribes = this.subscribes.filter(function (sub) {
-        return sub.sessionId !== socket.sessionId;
-      });
-    }
-
-    clearTimeout(socket.connectTimer);
-    if (socket.transactions !== undefined) {
-      socket.transactions.clear();
-    }
-    // turn off server side heart-beat (if needed)
-    this.heartbeatOff(socket);
-  };
-
-
-  /**
-   * Dispatch one frame to its command handler
+   * Accept one received frame. Frames after DISCONNECT are ignored, frames
+   * before CONNECT rejected; the others are processed in the order they were
+   * received, each after the previous one completed (see Session#enqueue).
    * @private
    */
   this._handleFrame = function (socket, frame) {
-    if (socket.stompDisconnecting) {
+    if (socket.state === Session.STATE.DISCONNECTING) {
       this.conf.debug('Frame after DISCONNECT ignored', socket.sessionId, frame.command);
       return;
     }
-    if (!Object.prototype.hasOwnProperty.call(this.frameHandler, frame.command)) {
-      stomp.fail(socket, 'Unknown command', 'Unknown command ' + frame.command, frame.headers.receipt);
+    var known = Object.prototype.hasOwnProperty.call(this.frameHandler, frame.command);
+    if (!socket.isConnected() && CONNECT_COMMANDS.indexOf(frame.command) < 0) {
+      if (!known) {
+        unknownCommand(socket, frame);
+      } else {
+        stomp.fail(socket, 'Not connected', 'CONNECT frame is required before ' + frame.command);
+      }
       return;
     }
-    if (!socket.stompConnected && CONNECT_COMMANDS.indexOf(frame.command) < 0) {
-      stomp.fail(socket, 'Not connected', 'CONNECT frame is required before ' + frame.command);
+    if (frame.command === 'DISCONNECT') {
+      // later frames are ignored from now on, also while the frames received
+      // before the DISCONNECT are still being processed
+      socket.state = Session.STATE.DISCONNECTING;
+    }
+    var self = this;
+    socket.enqueue(function () {
+      return self._processFrame(socket, frame, known);
+    });
+  };
+
+  /**
+   * Run the command handler of a frame
+   * @return {Promise|undefined} settles when an asynchronous command completed
+   * @private
+   */
+  this._processFrame = function (socket, frame, known) {
+    if (!known) {
+      unknownCommand(socket, frame);
       return;
     }
-    this.frameHandler[frame.command](socket, frame);
+    try {
+      return this.frameHandler[frame.command](socket, frame);
+    } catch (err) {
+      this._frameError(socket, frame, err);
+    }
+  };
+
+  /** ERROR for a command the broker doesn't know, then close */
+  function unknownCommand(socket, frame) {
+    stomp.fail(socket, 'Unknown command', 'Unknown command ' + frame.command, frame.headers.receipt);
+  }
+
+  /**
+   * ERROR for a frame that could not be decoded or processed, then close
+   * @private
+   */
+  this._frameError = function (socket, frame, err) {
+    this.conf.debug('Frame processing error', socket.sessionId, err);
+    if (!(err instanceof StompError)) {
+      this._emitError(err);
+    }
+    var receipt = frame && frame.headers ? frame.headers.receipt : undefined;
+    stomp.fail(socket, 'Frame processing error', stomp.clientErrorText(err), receipt);
   };
 
 
@@ -854,36 +784,27 @@ var StompServer = function (config) {
    * Handle data received on a socket: decode every complete frame in it and
    * dispatch them in order. Incomplete frames wait for the next data.
    *
-   * @param {WebSocket} socket Source socket
+   * @param {Session} socket Source session
    * @param {string|Buffer} data Text or binary message
    */
   this.parseRequest = function(socket, data) {
     // any incoming data counts as a heart-beat
-    socket.heartbeatTime = Date.now();
-    if (socket.decoder === undefined) {
-      socket.decoder = this._createDecoder();
-      socket.transactions = this._createTransactions();
-    }
+    socket.lastReceived = Date.now();
 
     var frame = null;
     try {
       socket.decoder.push(data);
       // stop when a frame closed the connection (ERROR, rejected CONNECT)
-      while (!socket.stompClosed && stompUtils.isOpen(socket)) {
+      while (socket.isOpen()) {
         frame = null;
-        frame = socket.decoder.shift(socket.stompVersion);
+        frame = socket.decoder.shift(socket.version);
         if (frame === null) {
           break;
         }
         this._handleFrame(socket, frame);
       }
     } catch (err) {
-      this.conf.debug('Frame processing error', socket.sessionId, err);
-      if (!(err instanceof StompError)) {
-        this._emitError(err);
-      }
-      var receipt = frame && frame.headers ? frame.headers.receipt : undefined;
-      stomp.fail(socket, 'Frame processing error', stomp.clientErrorText(err), receipt);
+      this._frameError(socket, frame, err);
     }
   };
 

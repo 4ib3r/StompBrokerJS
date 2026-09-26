@@ -3,6 +3,52 @@
 **Release:** 2.0.0 (breaking) · **Size:** L (1–2 weeks) · **Depends on:**
 steps 2–4 (their tests pin the behaviour the refactor must keep)
 
+## Split into four PRs
+
+Step 5 is too large for one reviewable PR; it is done in four, each keeping
+the full suite green (the earlier steps' tests are the safety net, so the
+public API changes only in 5c):
+
+### 5a Internal extraction
+
+No public API change beyond what the session object replaces.
+
+- `lib/session.js`: `Session` wraps the transport connection and holds what
+  was monkey-patched onto the WebSocket: state (`OPEN → CONNECTED →
+  DISCONNECTING → CLOSED`), negotiated version, decoder, transactions,
+  CONNECT timer, heart-beat timers (the planned `HeartbeatManager` is
+  `Session#startHeartbeats` / `stopHeartbeats`: the timers belong to the
+  session). Middleware and events get the session (it has `sessionId`).
+- `lib/subscription-registry.js`: destination trie (`*`, `**`) plus
+  per-session index; matches in subscription order (as the linear scan);
+  replaces `subscribes` array, `_sessionSubscriptions` and `_matchTokens`.
+  Property-tested against the old matcher.
+- `StompServer#subscribes` is a read-only snapshot; open sessions in
+  `_sessions` (used by `close()` in 5b).
+- `bench/fanout.js`: 10 000 subscriptions, exact destination: ~5 µs per
+  message vs ~240 µs before (≈ 50×).
+- Router and middleware chain stay in `stompServer.js` until 5c changes
+  their contracts anyway.
+
+### 5b Transports
+
+ws 8 (`message(data, isBinary)`), the `Transport` / `Connection` interface
+below, SockJS as optional peer dependency (lazy `require`, configurable
+`sockjs_url`), `server.close()`, `handleUpgrade` for `noServer`, in-memory
+transport for tests.
+
+### 5c Public 2.0 API
+
+`class StompServer`, private internals, `publish()` promise,
+`Subscription` objects, `(ctx, next)` middleware, `SessionInfo` events,
+`error` events always emitted, remaining dead code, `MIGRATION.md`. No
+1.x middleware shim is needed (2.0 is a major release, decided).
+
+### 5d Security hooks, types, docs
+
+`authenticate` / `authorize` / `allowWildcardSubscriptions`, `index.d.ts`
+checked in CI, jsdoc from the new API, README rewrite.
+
 ## Goal
 
 Replace the constructor-closure god object with small, separately testable

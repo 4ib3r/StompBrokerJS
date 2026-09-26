@@ -187,8 +187,8 @@ describe('Transactions and acknowledgements', function () {
         return p.sender.sendWithReceipt('SEND', {destination: '/t', transaction: 'tx1'}, 'x');
       }).then(function () {
         // the server side of the sender: the connection with an open transaction
-        serverSocket = Array.from(ctx.broker.socket.clients).filter(function (ws) {
-          return ws.transactions.size > 0;
+        serverSocket = Array.from(ctx.broker._sessions.values()).filter(function (session) {
+          return session.transactions.size > 0;
         })[0];
         assert.isTrue(serverSocket.transactions.has('tx1'));
         return new Promise(function (resolve) {
