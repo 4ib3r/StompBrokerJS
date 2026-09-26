@@ -672,6 +672,101 @@ describe('StompServer broker', function () {
   });
 
 
+  describe('asynchronous middleware', function () {
+    function later(ms, fn) {
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          resolve(fn());
+        }, ms);
+      });
+    }
+
+    it('does not accept a connection that closed while connect middleware was pending', function () {
+      var events = [];
+      var brokerSocket;
+      return ctx.start({heartbeat: [100, 0]}).then(function (broker) {
+        broker.on('connected', function () {
+          events.push('connected');
+        });
+        broker.on('disconnected', function () {
+          events.push('disconnected');
+        });
+        broker.addMiddleware('connect', function (socket, args, next) {
+          brokerSocket = socket;
+          return later(100, next);
+        });
+        var client = ctx.client();
+        return client.open().then(function () {
+          client.send('CONNECT', {'accept-version': '1.1', 'heart-beat': '0,100'});
+          return delay(20);
+        }).then(function () {
+          client.close();
+          return delay(200);
+        });
+      }).then(function () {
+        assert.notInclude(events, 'connected');
+        assert.isUndefined(brokerSocket.heartbeatClock, 'heart-beat timer leaked');
+        assert.isUndefined(brokerSocket.heartbeatCheckClock, 'heart-beat timer leaked');
+      });
+    });
+
+    it('emits disconnected on close after async disconnect middleware rejected DISCONNECT', function () {
+      var disconnected = 0;
+      var client;
+      return ctx.start().then(function (broker) {
+        broker.on('disconnected', function () {
+          disconnected++;
+        });
+        // refuse the DISCONNECT frame, allow the cleanup when the socket closes
+        broker.addMiddleware('disconnect', function (socket, receipt, next) {
+          return later(20, function () {
+            return receipt === 'deny' ? false : next();
+          });
+        });
+        return connectedClient();
+      }).then(function (c) {
+        client = c;
+        client.send('DISCONNECT', {receipt: 'deny'});
+        return client.waitForCommand('ERROR');
+      }).then(function () {
+        client.ws.close();
+        return delay(200);
+      }).then(function () {
+        assert.equal(disconnected, 1);
+      });
+    });
+
+    it('reports a rejected async disconnect middleware on socket close as error event', function () {
+      var unhandled = [];
+      var errors = [];
+      function onUnhandled(reason) {
+        unhandled.push(reason);
+      }
+      process.on('unhandledRejection', onUnhandled);
+      return ctx.start().then(function (broker) {
+        broker.on('error', function (err) {
+          errors.push(err);
+        });
+        broker.addMiddleware('disconnect', function () {
+          return Promise.reject(new Error('disconnect failed'));
+        });
+        return connectedClient();
+      }).then(function (client) {
+        client.ws.close();
+        return delay(200);
+      }).then(function () {
+        process.removeListener('unhandledRejection', onUnhandled);
+        assert.lengthOf(unhandled, 0, 'unhandled rejection: ' + unhandled[0]);
+        assert.lengthOf(errors, 1);
+        assert.equal(errors[0].message, 'disconnect failed');
+      }, function (err) {
+        process.removeListener('unhandledRejection', onUnhandled);
+        throw err;
+      });
+    });
+  });
+
+
   describe('heart-beats', function () {
     this.timeout(5000);
 
