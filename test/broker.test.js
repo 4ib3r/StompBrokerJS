@@ -994,18 +994,20 @@ describe('StompServer broker', function () {
     });
 
     it('stops heart-beat timers when the connection closes', function () {
-      var socket;
+      var session;
       return ctx.start({heartbeat: [200, 0]}).then(function (broker) {
-        broker.on('connected', function () {
-          socket = broker.socket.clients.values().next().value;
+        broker.on('connected', function (sessionId) {
+          session = broker._sessions.get(sessionId);
         });
         return connectedClient({'heart-beat': '0,200'});
       }).then(function (client) {
-        assert.isDefined(socket.heartbeatClock);
-        client.ws.close();
-        return delay(100);
+        assert.lengthOf(session.heartbeatTimers, 1);
+        return new Promise(function (resolve) {
+          ctx.broker.once('disconnected', resolve);
+          client.ws.close();
+        });
       }).then(function () {
-        assert.isUndefined(socket.heartbeatClock);
+        assert.lengthOf(session.heartbeatTimers, 0);
       });
     });
   });
