@@ -2,6 +2,42 @@
 
 **Release:** 1.4.0 · **Size:** M (2–3 days) · **Depends on:** step 1
 
+## As implemented
+
+Differences from the design below, decided while implementing:
+
+- **Body type follows the WebSocket message type** instead of "always a
+  `Buffer` + `bodyText()`": frames received in text messages have a string
+  body, frames with any part received in a binary message have a `Buffer`
+  body. Middleware that reads text bodies keeps working; only binary bodies
+  change (they were corrupted strings before). MESSAGE frames are sent as text
+  for string bodies and binary for `Buffer` bodies, as before.
+- **Unknown escape sequences are kept verbatim** (not a protocol error, P8
+  not changed): stompjs 2.x doesn't escape header values, so a value like
+  `C:\temp` would otherwise close the connection.
+- **Forbidden header characters:** NUL (raw) and CR (raw or `\r`) are
+  rejected; LF is allowed through the `\n` escape and escaped again on output
+  (1.1) or the header is left out (1.0). Headers that can't be written
+  safely are left out by the serializer; so are headers with `undefined` /
+  `null` values.
+- **Invalid JSON for server-side subscribers** is passed on as text and logged
+  with `debug`, not emitted as `error` (it is client data, not a broker
+  failure).
+- **Frame size:** a decoder limit of 100 MiB (same as the ws `maxPayload`
+  default) bounds data buffered for one frame; configurable limits stay in
+  step 3.
+- **Changelog** goes into the existing "Unreleased" section of `README.MD`.
+- **Performance:** single decode path for text and binary. Parsing a typical
+  small SEND frame runs at ~0.8 M frames/s vs ~1.3 M frames/s for the old
+  (incorrect) string parser on one core (Node 22). The gap is the UTF-8
+  encoding of text messages, required to count `content-length` in bytes; a
+  second string-only path was not worth the extra bug surface. The 10 %
+  criterion below is not met.
+- Pipelined frames after a CONNECT in the same WebSocket message are rejected
+  with "Not connected" when the connect middleware is asynchronous (the
+  CONNECT isn't accepted yet when they are dispatched). Clients wait for
+  CONNECTED, so this is not expected to matter.
+
 ## Goal
 
 Every byte a client sends is decoded into exactly the frames it contains, and

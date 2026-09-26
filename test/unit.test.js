@@ -20,11 +20,12 @@ describe('lib/stomp-utils', function () {
       assert.equal(frame.body, 'hello');
     });
 
-    it('parses a Buffer the same way as a string', function () {
+    it('parses a Buffer the same way as a string, keeping the body binary', function () {
       var frame = stompUtils.parseFrame(Buffer.from('SEND\ndestination:/a\n\nhello\0'));
       assert.equal(frame.command, 'SEND');
       assert.equal(frame.headers.destination, '/a');
-      assert.equal(frame.body, 'hello');
+      assert.isTrue(Buffer.isBuffer(frame.body));
+      assert.equal(frame.body.toString(), 'hello');
     });
 
     it('keeps colons inside header values', function () {
@@ -43,9 +44,9 @@ describe('lib/stomp-utils', function () {
       assert.isNull(stompUtils.parseFrame(undefined));
     });
 
-    it('marks frames with content-length as bytes_message', function () {
+    it('does not add pseudo headers', function () {
       var frame = stompUtils.parseFrame('SEND\ndestination:/a\ncontent-length:5\n\nhello\0');
-      assert.isTrue(frame.headers.bytes_message);
+      assert.deepEqual(frame.headers, {destination: '/a', 'content-length': '5'});
     });
 
     it('keeps blank lines inside the body', function () {
@@ -61,7 +62,7 @@ describe('lib/stomp-utils', function () {
     it('uses content-length as a UTF-8 byte count', function () {
       var body = 'żółć';
       var raw = 'SEND\ndestination:/a\ncontent-length:' + Buffer.byteLength(body) + '\n\n' + body + '\0';
-      assert.equal(stompUtils.parseFrame(Buffer.from(raw)).body, body);
+      assert.equal(stompUtils.parseFrame(Buffer.from(raw)).body.toString(), body);
     });
 
     it('uses content-length as a UTF-8 byte count for string input', function () {
@@ -70,9 +71,8 @@ describe('lib/stomp-utils', function () {
       assert.equal(stompUtils.parseFrame(raw).body, body);
     });
 
-    it('falls back to NULL terminator when content-length exceeds the data', function () {
-      var frame = stompUtils.parseFrame('SEND\ndestination:/a\ncontent-length:99\n\nabc\0');
-      assert.equal(frame.body, 'abc');
+    it('returns null while a content-length body is incomplete', function () {
+      assert.isNull(stompUtils.parseFrame('SEND\ndestination:/a\ncontent-length:99\n\nabc\0'));
     });
 
     it('parses CRLF line endings', function () {
@@ -175,6 +175,36 @@ describe('lib/frame', function () {
   it('escapes STOMP 1.1 special characters in header values', function () {
     var frame = new Frame({command: 'MESSAGE', headers: {x: 'a\nb:c\\d'}, body: ''});
     assert.equal(frame.toStringOrBuffer(), 'MESSAGE\nx:a\\nb\\cc\\\\d\n\n\0');
+  });
+
+  it('serializes a frame without headers without an extra line feed', function () {
+    var frame = new Frame({command: 'DISCONNECT', headers: {}, body: 'x'});
+    assert.equal(frame.toStringOrBuffer(), 'DISCONNECT\n\nx\0');
+  });
+
+  it('escapes header names as well as values', function () {
+    var frame = new Frame({command: 'MESSAGE', headers: {'a:b\nc': 'v'}});
+    assert.equal(frame.toStringOrBuffer('1.1'), 'MESSAGE\na\\cb\\nc:v\n\n\0');
+  });
+
+  it('leaves out headers that cannot be written for STOMP 1.1', function () {
+    var frame = new Frame({command: 'MESSAGE', headers: {a: 'x\ry', b: 'x\0y', 'c\0': 'v', ok: '1'}});
+    assert.equal(frame.toStringOrBuffer('1.1'), 'MESSAGE\nok:1\n\n\0');
+  });
+
+  it('leaves out headers that cannot be written for STOMP 1.0', function () {
+    var frame = new Frame({command: 'MESSAGE', headers: {a: 'x\ny', 'b:c': 'v', d: 'x\0', ok: 'u:v'}});
+    assert.equal(frame.toStringOrBuffer('1.0'), 'MESSAGE\nok:u:v\n\n\0');
+  });
+
+  it('does not escape CONNECTED headers but leaves out unsafe ones', function () {
+    var frame = new Frame({command: 'CONNECTED', headers: {server: 'a:b', bad: 'x\ny'}});
+    assert.equal(frame.toStringOrBuffer('1.1'), 'CONNECTED\nserver:a:b\n\n\0');
+  });
+
+  it('leaves out headers with undefined or null values', function () {
+    var frame = new Frame({command: 'RECEIPT', headers: {'receipt-id': undefined, x: null, y: 0}});
+    assert.equal(frame.toStringOrBuffer(), 'RECEIPT\ny:0\n\n\0');
   });
 
   it('adds a receipt header with buildFrame(args, true)', function () {

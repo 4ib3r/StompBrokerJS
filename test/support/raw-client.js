@@ -75,6 +75,11 @@ RawClient.prototype.send = function (command, headers, body) {
   this.ws.send(buildFrame(command, headers, body));
 };
 
+/** Send raw data (string: text message, Buffer: binary message) */
+RawClient.prototype.sendRaw = function (data) {
+  this.ws.send(data);
+};
+
 /** Resolve with the first received frame matching `predicate`. */
 RawClient.prototype.waitFor = function (predicate, timeout, description) {
   var self = this;
@@ -179,6 +184,12 @@ RawClient.prototype.flush = function () {
   return this.sendWithReceipt('SEND', {destination: FLUSH_DESTINATION}, '');
 };
 
+/** Body bytes of a received frame (`frame.body` is decoded as UTF-8) */
+function bodyBytes(frame) {
+  var raw = Buffer.isBuffer(frame.raw) ? frame.raw : Buffer.from(frame.raw);
+  return raw.subarray(raw.indexOf('\n\n') + 2, raw.length - 1);
+}
+
 /** All MESSAGE frames received so far */
 RawClient.prototype.messages = function () {
   return this.frames.filter(function (f) {
@@ -255,6 +266,7 @@ function useBroker() {
 module.exports = {
   NULL: NULL,
   buildFrame: buildFrame,
+  bodyBytes: bodyBytes,
   parseFrame: parseFrame,
   RawClient: RawClient,
   delay: delay,
