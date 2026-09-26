@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": false,
+    "types": ["node"]
+  },
+  "files": ["usage.ts"]
+}
