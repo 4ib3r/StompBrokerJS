@@ -14,6 +14,7 @@ builds on the previous one and must leave CI green.
 | 5b | [Transports: ws 8, interface, optional SockJS, `close()`](05-architecture-2.0.md#5b-transports) | 2.0.0 | M | planned |
 | 5c | [Public 2.0 API](05-architecture-2.0.md#5c-public-20-api) | 2.0.0 | L | planned |
 | 5d | [Security hooks, types, docs](05-architecture-2.0.md#5d-security-hooks-types-docs) | 2.0.0 | M | planned |
+| 6 | [STOMP 1.2 support and B1 fix](stomp-1.2-compliance.md#proposed-step-6-stomp-12) | 2.0.0 | M | planned |
 
 **Release decision:** there are no 1.x releases in between; everything above
 ships in **2.0.0**. Behaviour changes from steps 2–4 don't need to be held
@@ -65,4 +66,6 @@ Where each review finding is addressed:
 | Inconsistent middleware / error strategy, leaky public API | 5 |
 | sockjs eager require, forced options, no `close()` | 5 |
 | ws 5 end-of-life, sockjs `uuid` advisory | 5 |
+| Frames received before DISCONNECT dropped when async middleware finishes late (spec: SHOULD still be processed) | 6 (B1) |
+| STOMP 1.2 not negotiated: CR escaping, MESSAGE `ack` header, ACK/NACK `id` | 6 |
 | No auth/authorization defaults, `/**` eavesdropping | 5 |
