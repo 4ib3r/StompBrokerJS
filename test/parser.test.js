@@ -249,6 +249,23 @@ describe('lib/parser FrameDecoder', function () {
       }, ProtocolError, /too large/);
     });
 
+    it('rejects a complete frame larger than maxFrameSize', function () {
+      assert.throws(function () {
+        decodeAll(['SEND\n\n0123456789\0'], undefined, {maxFrameSize: 10});
+      }, ProtocolError, /too large/);
+    });
+
+    it('rejects too many headers and too long header lines', function () {
+      assert.throws(function () {
+        decodeAll(['SEND\na:1\nb:2\nc:3\n\n\0'], undefined, {maxHeaders: 2});
+      }, ProtocolError, /Too many headers/);
+      assert.lengthOf(decodeAll(['SEND\na:1\nb:2\n\n\0'], undefined, {maxHeaders: 2}), 1);
+      assert.throws(function () {
+        decodeAll(['SEND\na:12345\n\n\0'], undefined, {maxHeaderLength: 6});
+      }, ProtocolError, /Header too long/);
+      assert.lengthOf(decodeAll(['SEND\na:1234\n\n\0'], undefined, {maxHeaderLength: 6}), 1);
+    });
+
     it('accepts a frame of exactly maxFrameSize', function () {
       var raw = 'SEND\n\n0123456789\0';
       var frames = decodeAll([raw], undefined, {maxFrameSize: Buffer.byteLength(raw)});

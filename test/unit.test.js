@@ -6,6 +6,7 @@ var assert = require('chai').assert;
 var stompUtils = require('../lib/stomp-utils');
 var Frame = require('../lib/frame');
 var buildConfig = require('../lib/config');
+var stomp = require('../lib/stomp');
 var VERSION = require('../package.json').version;
 
 
@@ -260,9 +261,107 @@ describe('lib/config', function () {
     }, Error, /server/i);
   });
 
+  it('applies default limits and merges provided ones', function () {
+    assert.deepEqual(buildConfig({server: server}).limits, buildConfig.DEFAULT_LIMITS);
+    var limits = buildConfig({server: server, limits: {maxHeaders: 5, maxFrameSize: Infinity}}).limits;
+    assert.equal(limits.maxHeaders, 5);
+    assert.equal(limits.maxFrameSize, Infinity);
+    assert.equal(limits.maxSubscriptions, buildConfig.DEFAULT_LIMITS.maxSubscriptions);
+    assert.equal(buildConfig({server: server}).slowConsumerPolicy, 'drop');
+  });
+
+  it('rejects unknown limits, invalid limit values and policies', function () {
+    assert.throws(function () {
+      buildConfig({server: server, limits: {maxHeader: 5}});
+    }, Error, /Unknown limit "maxHeader"/);
+    [0, -1, 1.5, '5', null, NaN].forEach(function (value) {
+      assert.throws(function () {
+        buildConfig({server: server, limits: {maxHeaders: value}});
+      }, Error, /positive integer/, String(value));
+    });
+    assert.throws(function () {
+      buildConfig({server: server, slowConsumerPolicy: 'ignore'});
+    }, Error, /slowConsumerPolicy/);
+  });
+
   it('rejects an unknown protocol', function () {
     assert.throws(function () {
       buildConfig({server: server, protocol: 'foo'});
     }, Error, /protocol/i);
+  });
+});
+
+
+describe('lib/stomp', function () {
+  describe('#parseHeartbeat', function () {
+    it('parses two non-negative integers', function () {
+      assert.deepEqual(stomp.parseHeartbeat('0,1000'), [0, 1000]);
+      assert.deepEqual(stomp.parseHeartbeat(undefined), [0, 0]);
+    });
+
+    it('rejects anything else', function () {
+      ['', 'abc', '1', '1,2,3', '-1,5', '1.5,2', 'Infinity,1', ' 1,2'].forEach(function (value) {
+        assert.isNull(stomp.parseHeartbeat(value), value);
+      });
+    });
+  });
+
+  describe('#negotiateHeartbeat', function () {
+    it('uses the larger interval when both sides want heart-beats', function () {
+      assert.deepEqual(stomp.negotiateHeartbeat([500, 2000], [1000, 1000]), [2000, 1000]);
+    });
+
+    it('disables a direction when either side does not want it', function () {
+      assert.deepEqual(stomp.negotiateHeartbeat([0, 2000], [1000, 0]), [2000, 0]);
+      assert.deepEqual(stomp.negotiateHeartbeat([500, 0], [1000, 1000]), [0, 1000]);
+    });
+
+    it('bounds intervals to what timers support', function () {
+      assert.deepEqual(stomp.negotiateHeartbeat([99999999999, 99999999999], [1, 1]), [2147483647, 2147483647]);
+    });
+  });
+
+  describe('#whenDone', function () {
+    it('reports an error thrown by onResult of an asynchronous handler', function () {
+      return new Promise(function (resolve) {
+        stomp.whenDone(function () {
+          return Promise.resolve(true);
+        }, function () {
+          throw new Error('boom');
+        }, resolve);
+      }).then(function (err) {
+        assert.equal(err.message, 'boom');
+      });
+    });
+  });
+
+  describe('#clientErrorText', function () {
+    it('passes StompError messages and hides other errors', function () {
+      var StompError = require('../lib/errors').StompError;
+      assert.equal(stomp.clientErrorText(new StompError('Access denied')), 'Access denied');
+      assert.equal(stomp.clientErrorText(new Error('db at 10.0.0.5')), 'Internal error');
+    });
+  });
+});
+
+
+describe('lib/frame MessageTemplate', function () {
+  it('renders the same headers with each subscription id', function () {
+    var message = new Frame.MessageTemplate({destination: '/a', 'message-id': 'm1'}, 'body');
+    assert.equal(message.render('1.1', 's1'), 'MESSAGE\ndestination:/a\nmessage-id:m1\nsubscription:s1\n\nbody\0');
+    assert.equal(message.render('1.1', 's2'), 'MESSAGE\ndestination:/a\nmessage-id:m1\nsubscription:s2\n\nbody\0');
+  });
+
+  it('escapes for STOMP 1.1 and not for 1.0 subscribers', function () {
+    var message = new Frame.MessageTemplate({url: 'http://x:80/'}, '');
+    assert.equal(message.render('1.1', 'a:b'), 'MESSAGE\nurl:http\\c//x\\c80/\nsubscription:a\\cb\n\n\0');
+    assert.equal(message.render('1.0', 's1'), 'MESSAGE\nurl:http://x:80/\nsubscription:s1\n\n\0');
+  });
+
+  it('renders a Buffer body into a Buffer', function () {
+    var body = Buffer.from([0xff, 0x00]);
+    var out = new Frame.MessageTemplate({}, body).render('1.1', 's1');
+    assert.isTrue(Buffer.isBuffer(out));
+    assert.isTrue(out.equals(Buffer.concat([Buffer.from('MESSAGE\nsubscription:s1\n\n'), body, Buffer.from([0])])));
   });
 });

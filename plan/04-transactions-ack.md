@@ -1,6 +1,6 @@
 # Step 4 — Transactions, ACK/NACK
 
-**Release:** 1.5.0 · **Size:** S–M (1–2 days) · **Depends on:** step 3
+**Release:** 2.0.0 · **Size:** S–M (1–2 days) · **Depends on:** step 3
 (ERROR closes, per-session state, `ack` mode validated at SUBSCRIBE)
 
 ## Goal

@@ -26,7 +26,21 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 * 0.1.1 Added wildcards to destination, change subscribe method [no backward compatibility]
 * 0.1.2 Bug fixes, changed websocket library, updated documentation.
 * 0.1.3 Unsubscribe on server, updated documentation, added events.
-* Unreleased
+* 2.0.0 (unreleased)
+    * Breaking changes:
+        * Node.js 20 or newer.
+        * Every ERROR frame closes the connection (rejected commands, unknown subscription ids, malformed
+          frames, exceeded limits); unknown commands are answered with ERROR.
+        * DISCONNECT closes the connection; frames sent after it are ignored.
+        * Default `limits` apply, e.g. frames over 1 MiB and more than 256 subscriptions per connection are
+          rejected; see "Limits".
+        * SUBSCRIBE requires an `id` header from STOMP 1.1 clients (1.0 clients may omit it, the destination
+          is used instead, also for UNSUBSCRIBE); ids must be unique per connection; the `ack` header must be
+          `auto`, `client` or `client-individual`; server-side `subscribe()` throws for an id already in use.
+        * `send` middleware gets JSON bodies as received (text), not as parsed objects; binary bodies are
+          `Buffer`s.
+        * ERROR frames no longer contain internal error messages, throw a `StompServer.StompError` to send a
+          message to the client.
     * Malformed frames (e.g. missing destination) are answered with ERROR instead of crashing the process;
       socket errors are emitted only when an `error` listener is registered.
     * Frames are decoded incrementally: a WebSocket message may contain several frames and a frame may span
@@ -38,7 +52,15 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
       subscribers and `send` event listeners; invalid JSON is passed on as text instead of closing the connection.
       `send` middleware sees the body as received (text), no longer as a parsed object.
     * Malformed frames (invalid command, header line or `content-length`, missing NUL after `content-length`
-      octets, frames over 100 MiB) are answered with ERROR and the connection is closed.
+      octets) are answered with ERROR and the connection is closed.
+    * Configurable `limits` (frame size, headers, subscriptions per connection, queued data, CONNECT timeout)
+      and `slowConsumerPolicy`, see "Limits".
+    * Invalid `heart-beat` headers are rejected; very large intervals no longer overflow timers (which made
+      the server send heart-beats every millisecond).
+    * Subscriptions accepted by asynchronous middleware after the connection closed are no longer leaked.
+    * ERROR frames carry the message of a `StompError` or `Internal error`, not internal error details;
+      the passcode is no longer passed to `debug`.
+    * MESSAGE frames are serialized once per message instead of once per subscriber.
     * Frames other than CONNECT/STOMP are rejected until the client is connected.
     * MESSAGE frames contain `destination` and `message-id` headers, `content-length` is the UTF-8 byte length;
       `receipt`, `message-id` and `subscription` headers sent by clients are not forwarded.
@@ -60,11 +82,13 @@ var stompServer = new StompServer({server: server});
 
 server.listen(61614);
 
+// messages sent by clients to any destination
 stompServer.subscribe("/**", function(msg, headers) {
   var topic = headers.destination;
   console.log(topic, "->", msg);
 });
 
+// delivered to subscribed clients (not to server-side subscriptions)
 stompServer.send('/test', {}, 'testMsg');
 ```
 
@@ -80,9 +104,28 @@ new StompServer({
   heartbeat: [0, 0],             // [server sends every ms, server expects every ms], 0 disables
   heartbeatErrorMargin: 1000,    // tolerance for late client heart-beats
   serverName: 'STOMP-JS/x.y.z',
-  debug: function () {}
+  debug: function () {},
+  limits: {},                    // see "Limits"
+  slowConsumerPolicy: 'drop'     // 'drop' or 'close', see "Limits"
 });
 ```
+
+### Limits
+Every limit can be raised, or disabled with `Infinity`; unknown names are rejected when the server is created.
+```javascript
+limits: {
+  maxFrameSize: 1048576,         // bytes per frame (also the ws maxPayload default)
+  maxHeaders: 64,                // headers per frame
+  maxHeaderLength: 8192,         // characters per header line
+  maxSubscriptions: 256,         // subscriptions per connection
+  maxBufferedAmount: 8388608,    // bytes queued for a connection before it counts as a slow consumer
+  connectTimeout: 10000          // ms from opening the socket to the CONNECT frame
+}
+```
+A client that breaks a limit gets an ERROR frame and the connection is closed. Messages for a slow consumer
+are dropped (`slowConsumerPolicy: 'drop'`, the `slowConsumer` event is emitted) or its connection is closed
+(`'close'`); SockJS connections don't report queued data, so this applies to `ws` connections only.
+Options in `protocolConfig` (e.g. `maxPayload`, `perMessageDeflate`) take precedence over these defaults.
 
 ### Sharing an http server (`noServer`)
 ```javascript
@@ -104,7 +147,7 @@ For server-side subscribers (and `send` event listeners) `application/json` bodi
 
 ## Validating clients on connect
 Middleware receives `(socket, args, next)`; return `next()` to continue or a falsy value to reject.
-A rejected CONNECT is answered with an ERROR frame and the connection is closed. Middleware may return a Promise.
+A rejected command is answered with an ERROR frame and the connection is closed. Middleware may return a Promise.
 ```javascript
 stompServer.addMiddleware('connect', function (socket, args, next) {
   return checkToken(args.headers.passcode).then(function (ok) {
@@ -114,6 +157,18 @@ stompServer.addMiddleware('connect', function (socket, args, next) {
 ```
 Middleware is also available for `send`, `subscribe`, `unsubscribe` and `disconnect`.
 
+To tell the client why a command was rejected, throw (or reject with) a `StompServer.StompError`; its message
+is sent in the ERROR frame. Other errors are reported to the client as `Internal error` and emitted as `error`
+events, so that internal details don't leak.
+```javascript
+stompServer.addMiddleware('subscribe', function (socket, args, next) {
+  if (!mayRead(socket.sessionId, args.dest)) {
+    throw new StompServer.StompError('Access denied');
+  }
+  return next();
+});
+```
+
 ## Events
 * `connecting` (sessionId) — socket opened
 * `connected` (sessionId, headers) — CONNECT accepted
@@ -121,6 +176,8 @@ Middleware is also available for `send`, `subscribe`, `unsubscribe` and `disconn
 * `unsubscribe` (subscription)
 * `send` ({dest, frame}) — message published
 * `disconnected` (sessionId)
-* `error` (err) — socket errors, emitted only when a listener is registered
+* `slowConsumer` ({sessionId, subscription, destination, messageId}) — a message was not delivered, see "Limits"
+* `error` (err) — socket errors and errors thrown by middleware or listeners, emitted only when a listener
+  is registered
 # Documentation
 <https://4ib3r.github.io/StompBrokerJS/>
