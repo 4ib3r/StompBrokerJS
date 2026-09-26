@@ -68,13 +68,12 @@ var StompServer = function (config) {
 
     ws.on('message', this.parseRequest.bind(this, ws));
     ws.on('close', function () {
-      // DISCONNECT frame already handled the graceful disconnect
+      ws.stompClosed = true;
+      // DISCONNECT frame may already have handled the graceful disconnect
       if (!ws.stompDisconnected) {
-        try {
-          this.onDisconnect(ws);
-        } catch (err) {
-          this._emitError(err);
-        }
+        stomp.whenDone(function () {
+          return this.onDisconnect(ws);
+        }.bind(this), function () {}, this._emitError.bind(this));
       }
       this.afterConnectionClose(ws);
     }.bind(this));
@@ -175,6 +174,9 @@ var StompServer = function (config) {
    * @property {object} headers
    */
   this.onClientConnected = withMiddleware('connect', function (socket, args) {
+    if (socket.stompClosed) {
+      return false;
+    }
     socket.clientHeartbeat = {
       client: args.heartbeat[0],
       server: args.heartbeat[1]
@@ -192,7 +194,11 @@ var StompServer = function (config) {
    * @property {string} sessionId
    * */
   this.onDisconnect = withMiddleware('disconnect', function (socket /*, receiptId*/) {
-    // TODO: Do we need to do anything with receiptId on disconnect?
+    // DISCONNECT frame and socket close may both get here, emit only once
+    if (socket.stompDisconnected) {
+      return true;
+    }
+    socket.stompDisconnected = true;
     this.afterConnectionClose(socket);
     this.conf.debug('DISCONNECT', socket.sessionId);
     this.emit('disconnected', socket.sessionId);
