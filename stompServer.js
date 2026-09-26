@@ -292,10 +292,12 @@ var StompServer = function (config) {
    * @property {string} frame Message frame
    */
   this.onSend = withMiddleware('send', function (socket, args) {
-    if (socket !== selfSocket && !socket.isActive()) {
-      return false;
-    }
+    // a SEND received before the connection ended is still delivered, but
+    // not one of a transaction that was aborted when the session ended
     if (args.transaction !== undefined) {
+      if (!socket.isActive()) {
+        return false;
+      }
       // delivered on COMMIT; validate now so that COMMIT can't fail half-way
       stompUtils.tokenizeDestination(args.dest);
       socket.transactions.add(args.transaction, args, args.frame.body);
@@ -709,7 +711,9 @@ var StompServer = function (config) {
 
 
   /**
-   * Dispatch one frame to its command handler
+   * Accept one received frame. Frames after DISCONNECT are ignored, frames
+   * before CONNECT rejected; the others are processed in the order they were
+   * received, each after the previous one completed (see Session#enqueue).
    * @private
    */
   this._handleFrame = function (socket, frame) {
@@ -717,15 +721,59 @@ var StompServer = function (config) {
       this.conf.debug('Frame after DISCONNECT ignored', socket.sessionId, frame.command);
       return;
     }
-    if (!Object.prototype.hasOwnProperty.call(this.frameHandler, frame.command)) {
-      stomp.fail(socket, 'Unknown command', 'Unknown command ' + frame.command, frame.headers.receipt);
-      return;
-    }
+    var known = Object.prototype.hasOwnProperty.call(this.frameHandler, frame.command);
     if (!socket.isConnected() && CONNECT_COMMANDS.indexOf(frame.command) < 0) {
-      stomp.fail(socket, 'Not connected', 'CONNECT frame is required before ' + frame.command);
+      if (!known) {
+        unknownCommand(socket, frame);
+      } else {
+        stomp.fail(socket, 'Not connected', 'CONNECT frame is required before ' + frame.command);
+      }
       return;
     }
-    this.frameHandler[frame.command](socket, frame);
+    if (frame.command === 'DISCONNECT') {
+      // later frames are ignored from now on, also while the frames received
+      // before the DISCONNECT are still being processed
+      socket.state = Session.STATE.DISCONNECTING;
+    }
+    var self = this;
+    socket.enqueue(function () {
+      return self._processFrame(socket, frame, known);
+    });
+  };
+
+  /**
+   * Run the command handler of a frame
+   * @return {Promise|undefined} settles when an asynchronous command completed
+   * @private
+   */
+  this._processFrame = function (socket, frame, known) {
+    if (!known) {
+      unknownCommand(socket, frame);
+      return;
+    }
+    try {
+      return this.frameHandler[frame.command](socket, frame);
+    } catch (err) {
+      this._frameError(socket, frame, err);
+    }
+  };
+
+  /** ERROR for a command the broker doesn't know, then close */
+  function unknownCommand(socket, frame) {
+    stomp.fail(socket, 'Unknown command', 'Unknown command ' + frame.command, frame.headers.receipt);
+  }
+
+  /**
+   * ERROR for a frame that could not be decoded or processed, then close
+   * @private
+   */
+  this._frameError = function (socket, frame, err) {
+    this.conf.debug('Frame processing error', socket.sessionId, err);
+    if (!(err instanceof StompError)) {
+      this._emitError(err);
+    }
+    var receipt = frame && frame.headers ? frame.headers.receipt : undefined;
+    stomp.fail(socket, 'Frame processing error', stomp.clientErrorText(err), receipt);
   };
 
 
@@ -756,12 +804,7 @@ var StompServer = function (config) {
         this._handleFrame(socket, frame);
       }
     } catch (err) {
-      this.conf.debug('Frame processing error', socket.sessionId, err);
-      if (!(err instanceof StompError)) {
-        this._emitError(err);
-      }
-      var receipt = frame && frame.headers ? frame.headers.receipt : undefined;
-      stomp.fail(socket, 'Frame processing error', stomp.clientErrorText(err), receipt);
+      this._frameError(socket, frame, err);
     }
   };
 

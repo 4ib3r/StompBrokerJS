@@ -69,6 +69,11 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
     * ERROR frames carry the message of a `StompError` or `Internal error`, not internal error details;
       the passcode is no longer passed to `debug`.
     * MESSAGE frames are serialized once per message instead of once per subscriber.
+    * Frames of a connection are processed one after another, in the order received (also with asynchronous
+      middleware); a DISCONNECT RECEIPT is sent once all earlier frames were processed, and a SEND received
+      before DISCONNECT or before the connection closed is still delivered.
+    * The ERROR for a client without a common protocol version has a `version` header listing the supported
+      versions; the undefined escape `\r` in a STOMP 1.1 header is reported as `Undefined escape sequence \r`.
     * Routing uses a destination trie: the cost of a message depends on the destination depth and the number
       of matching subscriptions, not on the number of subscriptions (`bench/fanout.js`).
     * Transactions: BEGIN, COMMIT and ABORT; limits `maxTransactions` and `maxTransactionBytes`.

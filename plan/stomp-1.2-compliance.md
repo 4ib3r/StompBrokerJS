@@ -87,6 +87,13 @@ Legend: ✅ compliant · ⚠️ deviation (SHOULD / lenient / equivalent) ·
 
 ### B1 Frames received before a disconnect are dropped
 
+**Fixed** (test/compliance.test.js, "RECEIPT: previously received frames …"):
+frames of a session are processed in order through a per-session queue
+(`Session#enqueue`), the DISCONNECT RECEIPT follows all earlier frames, a
+non-transactional SEND received before DISCONNECT or a close is delivered.
+Known limitation: the queue is unbounded while a middleware never settles
+(before the fix those frames piled up as pending promises instead).
+
 The spec, under RECEIPT, says: *"If the client disconnects, previously
 received frames SHOULD continue to get processed by the server."*
 
@@ -155,6 +162,8 @@ To reject ids that were never sent, track outstanding ack ids per session.
 Bound that set by count, because nothing is ever redelivered.
 
 ### G5 `version` header on negotiation error
+
+**Fixed** together with S1 of the 1.1 check.
 
 The example ERROR carries `version:<supported versions>`. Add
 `version: '1.0,1.1,1.2'` to the "Supported protocol versions" ERROR, and put

@@ -86,6 +86,9 @@ Legend: ✅ compliant · ⚠️ deviation (SHOULD / lenient / equivalent) ·
 
 ### N1 Undefined escape sequences are not fatal
 
+**Error text fixed:** `\r` now fails with `Undefined escape sequence \r`.
+The leniency for other undefined escapes is unchanged (decision pending).
+
 1.1 says: *"Undefined escape sequences such as `\r` MUST be treated as a fatal
 protocol error."*
 
@@ -125,6 +128,9 @@ data. It is stricter than the 1.1 grammar, though.
 - Accept raw CR inside values for 1.1 sessions only, and write it back raw to 1.1 subscribers. The risk is that CRLF-tolerant clients then misread the line.
 
 ### S1 Negotiation ERROR without `version` header
+
+**Fixed:** `version:1.0,1.1` header and body `Supported protocol versions are
+1.0 1.1` (test/compliance.test.js, "Protocol Negotiation").
 
 1.1 says the server SHOULD answer with an ERROR "similar to" the example:
 `version:1.2,2.1` as a header and `Supported protocol versions are 1.2 2.1` as
