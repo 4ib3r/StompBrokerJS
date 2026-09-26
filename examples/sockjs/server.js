@@ -16,7 +16,7 @@ const stompServer = new StompServer({
     heartbeat: [2000,2000]
 });
 
-console.log(' [*] Listening on 0.0.0.0:3002');
+console.log(' [*] Listening on localhost:3002');
 server.listen(3002, 'localhost');
 
 stompServer.subscribe("/echo", (msg, headers) => {

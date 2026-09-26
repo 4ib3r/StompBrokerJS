@@ -1,0 +1,13 @@
+{
+    "private": true,
+    "dependencies": {
+        "stomp-broker-js": "file:../../",
+        "stompjs": "^2.3.3",
+        "websocket": "^1.0.35"
+    },
+    "scripts": {
+        "server": "node example.js",
+        "consumer": "node stomp-consumer.js",
+        "producer": "node stomp-producer.js"
+    }
+}

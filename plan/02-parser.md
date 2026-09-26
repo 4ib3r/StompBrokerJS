@@ -1,6 +1,6 @@
 # Step 2 — Streaming, binary-safe parser
 
-**Release:** 1.4.0 · **Size:** M (2–3 days) · **Depends on:** step 1
+**Release:** 2.0.0 · **Size:** M (2–3 days) · **Depends on:** step 1
 
 ## As implemented
 
