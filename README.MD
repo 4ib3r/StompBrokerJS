@@ -87,6 +87,7 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
     * Bodies containing blank lines or NULL octets (with `content-length`) are parsed correctly.
     * Fixed wildcard matching (`/a.b.c` no longer receives messages for `/a.b`).
     * Rejected CONNECT closes the connection; middleware may return a Promise.
+    * TypeScript type definitions (`stompServer.d.ts`).
     * `protocolConfig.noServer` is supported for the `ws` protocol.
     * Errors are thrown as `Error` instances.
 
@@ -111,6 +112,21 @@ stompServer.send('/test', {}, 'testMsg');
 ```
 
 Clients connect to `ws://localhost:61614/stomp` (the default `path` is `/stomp`).
+
+TypeScript (typings are included):
+```typescript
+import http = require('http');
+import StompServer = require('stomp-broker-js');
+
+const stompServer = new StompServer({server: http.createServer()});
+stompServer.addMiddleware('subscribe', (socket, args, next) => {
+  if (args.dest.startsWith('/private')) {
+    throw new StompServer.StompError('Access denied');
+  }
+  return next();
+});
+```
+The package is CommonJS: use `import StompServer = require(...)`, or a default import with `esModuleInterop`.
 
 ## Configuration
 ```javascript

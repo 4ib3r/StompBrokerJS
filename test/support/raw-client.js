@@ -45,8 +45,9 @@ function RawClient(port, path) {
   this.waiters = [];
   this.closed = false;
   this.ws = new WebSocket('ws://localhost:' + port + (path || '/stomp'));
-  this.ws.on('message', function (data) {
-    var frame = parseFrame(data);
+  this.ws.on('message', function (data, isBinary) {
+    // ws 8 delivers text messages as Buffers too
+    var frame = parseFrame(isBinary ? data : data.toString('utf8'));
     self.frames.push(frame);
     self._notify();
   });

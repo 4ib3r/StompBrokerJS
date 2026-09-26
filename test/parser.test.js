@@ -141,6 +141,14 @@ describe('lib/parser FrameDecoder', function () {
       assert.equal(frame.body.toString(), 'abc');
     });
 
+    it('returns a string body for a text message received as a Buffer', function () {
+      var decoder = new FrameDecoder();
+      decoder.push(Buffer.from('SEND\n\nżółć\0'), false);
+      var frame = decoder.shift();
+      assert.isString(frame.body);
+      assert.equal(frame.body, 'żółć');
+    });
+
     it('rejects a content-length body not followed by NUL', function () {
       assert.throws(function () {
         decodeAll(['SEND\ncontent-length:2\n\nabc\0']);

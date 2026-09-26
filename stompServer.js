@@ -89,7 +89,10 @@ var StompServer = function (config) {
     this.emit('connecting', session.sessionId);
     this.conf.debug('Connect', session.sessionId);
 
-    ws.on('message', this.parseRequest.bind(this, session));
+    // ws 8 delivers text messages as Buffers too, with isBinary false
+    ws.on('message', function (data, isBinary) {
+      this.parseRequest(session, data, isBinary);
+    }.bind(this));
     ws.on('close', function () {
       session.state = Session.STATE.CLOSED;
       this._sessions.delete(session.sessionId);
@@ -786,14 +789,15 @@ var StompServer = function (config) {
    *
    * @param {Session} socket Source session
    * @param {string|Buffer} data Text or binary message
+   * @param {boolean} [isBinary] false for a text message received as a Buffer
    */
-  this.parseRequest = function(socket, data) {
+  this.parseRequest = function(socket, data, isBinary) {
     // any incoming data counts as a heart-beat
     socket.lastReceived = Date.now();
 
     var frame = null;
     try {
-      socket.decoder.push(data);
+      socket.decoder.push(data, isBinary);
       // stop when a frame closed the connection (ERROR, rejected CONNECT)
       while (socket.isOpen()) {
         frame = null;
