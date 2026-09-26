@@ -8,8 +8,8 @@ builds on the previous one and must leave CI green.
 |---|---|---|---|---|
 | 1 | Tooling, CI, dependencies | 2.0.0 | S | done (#36) |
 | 2 | [Streaming, binary-safe parser](02-parser.md) | 2.0.0 | M | done (#39) |
-| 3 | [Limits and session lifecycle](03-limits-lifecycle.md) | 2.0.0 | M | in review |
-| 4 | [Transactions, ACK/NACK](04-transactions-ack.md) | 2.0.0 | S–M | planned |
+| 3 | [Limits and session lifecycle](03-limits-lifecycle.md) | 2.0.0 | M | done (#40) |
+| 4 | [Transactions, ACK/NACK](04-transactions-ack.md) | 2.0.0 | S–M | in review |
 | 5 | [2.0 architecture refactor](05-architecture-2.0.md) | 2.0.0 | L | planned |
 
 **Release decision:** there are no 1.x releases in between; everything above
@@ -17,11 +17,15 @@ ships in **2.0.0**. Behaviour changes from steps 2–4 don't need to be held
 back or made opt-in, but each one is listed under "Breaking changes" in the
 README changelog.
 
+## Decisions
+
+- **Release:** everything ships in 2.0.0 (see above).
+- **ACK/NACK:** documented no-ops for an at-most-once broker; redelivery of
+  unacknowledged messages is not planned (step 4).
+
 ## Open decisions
 
-1. **ACK/NACK semantics** (step 4): documented no-ops for an at-most-once
-   broker (recommended) vs. real unacked-message tracking with redelivery.
-2. **GitHub Pages**: switch from committed `docs/` on `master` to a
+1. **GitHub Pages**: switch from committed `docs/` on `master` to a
    `gh-pages` branch built by CI, then delete `docs/` from `master`.
 
 ## Rules for every step

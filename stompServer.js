@@ -6,6 +6,7 @@ var stompUtils      = require('./lib/stomp-utils');
 var FrameDecoder    = require('./lib/parser').FrameDecoder;
 var Frame           = require('./lib/frame');
 var StompError      = require('./lib/errors').StompError;
+var Transactions    = require('./lib/transactions');
 var BYTES           = require('./lib/bytes');
 
 var protocolAdapter = require('./lib/adapter');
@@ -75,6 +76,7 @@ var StompServer = function (config) {
   this.socket.on('connection', function (ws) {
     ws.sessionId = stompUtils.genId();
     ws.decoder = this._createDecoder();
+    ws.transactions = this._createTransactions();
     if (limits.connectTimeout !== Infinity) {
       ws.connectTimer = setTimeout(function () {
         if (!ws.stompConnected) {
@@ -113,6 +115,11 @@ var StompServer = function (config) {
     });
   };
 
+  /** @private */
+  this._createTransactions = function () {
+    return new Transactions(limits.maxTransactions, limits.maxTransactionBytes);
+  };
+
   /**
    * Emit error event only when somebody listens, an unhandled 'error' event
    * would otherwise crash the process.
@@ -127,13 +134,28 @@ var StompServer = function (config) {
 
   //<editor-fold defaultstate="collapsed" desc="Events">
 
+  /** Commands middle-ware can be registered for */
+  var MIDDLEWARE_COMMANDS = ['connect', 'disconnect', 'send', 'subscribe', 'unsubscribe',
+    'begin', 'commit', 'abort', 'ack', 'nack'];
+
+  /** Lower-case command name, TypeError for commands without middle-ware (e.g. typos) */
+  function middlewareCommand(command) {
+    var name = String(command).toLowerCase();
+    if (MIDDLEWARE_COMMANDS.indexOf(name) < 0) {
+      throw new TypeError('No middleware for command "' + command + '", supported: ' +
+        MIDDLEWARE_COMMANDS.join(', '));
+    }
+    return name;
+  }
+
   /**
    *  Add middle-ware for specific command
-   *  @param {('connect'|'disconnect'|'send'|'subscribe'|'unsubscribe')} command Command to hook
+   *  @param {('connect'|'disconnect'|'send'|'subscribe'|'unsubscribe'|'begin'|'commit'|'abort'|'ack'|'nack')} command
+   *    Command to hook
    *  @param {function} handler function to add in middle-ware
    * */
   this.addMiddleware = function (command, handler) {
-    command = command.toLowerCase();
+    command = middlewareCommand(command);
     if (! this.middleware[command] ) {
       this.middleware[command] = [];
     }
@@ -146,7 +168,7 @@ var StompServer = function (config) {
    *  @param {function} handler function to add in middle-ware
    * */
   this.setMiddleware = function (command, handler) {
-    command = command.toLowerCase();
+    command = middlewareCommand(command);
     this.middleware[command] = [handler];
   };
 
@@ -156,7 +178,7 @@ var StompServer = function (config) {
    *  @param {function} handler function to remove from middle-ware
    * */
   this.removeMiddleware = function (command, handler) {
-    var handlers = this.middleware[command.toLowerCase()] || [];
+    var handlers = this.middleware[middlewareCommand(command)] || [];
     var idx = handlers.indexOf(handler);
     if (idx >= 0) {
       handlers.splice(idx, 1);
@@ -263,6 +285,22 @@ var StompServer = function (config) {
     if (socket !== selfSocket && !isActive(socket)) {
       return false;
     }
+    if (args.transaction !== undefined) {
+      // delivered on COMMIT; validate now so that COMMIT can't fail half-way
+      stompUtils.tokenizeDestination(args.dest);
+      socket.transactions.add(args.transaction, args, args.frame.body);
+      return true;
+    }
+    return this._publish(socket, args);
+  });
+
+
+  /**
+   * Deliver a message (SEND frame, server send() or committed transaction) to
+   * the matching subscriptions.
+   * @private
+   */
+  this._publish = function (socket, args) {
     var destTokens = stompUtils.tokenizeDestination(args.dest);
     var originalBody = args.frame.body;
     var frame = this.frameSerializer(args.frame);
@@ -313,7 +351,69 @@ var StompServer = function (config) {
 
     this._sendToSubscriptions(socket, args, bodyObj, destTokens);
     return true;
+  };
+
+
+  /** Transaction of an active connection, StompError when it isn't open */
+  function openTransaction(socket, id) {
+    if (!socket.transactions.has(id)) {
+      throw new StompError('Unknown transaction ' + id);
+    }
+  }
+
+  /** Start a transaction (BEGIN) */
+  this.onBegin = withMiddleware('begin', function (socket, args) {
+    if (!isActive(socket)) {
+      return false;
+    }
+    socket.transactions.begin(args.transaction);
+    return true;
   });
+
+  /** Deliver the messages of a transaction, in order (COMMIT) */
+  this.onCommit = withMiddleware('commit', function (socket, args) {
+    if (!isActive(socket)) {
+      return false;
+    }
+    var messages = socket.transactions.commit(args.transaction);
+    for (var i = 0; i < messages.length; i++) {
+      this._publish(socket, messages[i]);
+    }
+    return true;
+  });
+
+  /** Drop the messages of a transaction (ABORT) */
+  this.onAbort = withMiddleware('abort', function (socket, args) {
+    if (!isActive(socket)) {
+      return false;
+    }
+    socket.transactions.abort(args.transaction);
+    return true;
+  });
+
+  /**
+   * ACK / NACK: the subscription (when given) must belong to the connection,
+   * the transaction (when given) must be open. Delivery is at-most-once, so
+   * they don't change what is delivered; middle-ware can act on them.
+   */
+  function acknowledge(socket, args) {
+    if (!isActive(socket)) {
+      return false;
+    }
+    if (args.subscription !== undefined) {
+      var sessionSubs = this._sessionSubscriptions.get(socket.sessionId);
+      if (sessionSubs === undefined || !sessionSubs.has(args.subscription)) {
+        throw new StompError('No subscription ' + args.subscription);
+      }
+    }
+    if (args.transaction !== undefined) {
+      openTransaction(socket, args.transaction);
+    }
+    return true;
+  }
+
+  this.onAck = withMiddleware('ack', acknowledge);
+  this.onNack = withMiddleware('nack', acknowledge);
 
 
   /**
@@ -718,6 +818,9 @@ var StompServer = function (config) {
     }
 
     clearTimeout(socket.connectTimer);
+    if (socket.transactions !== undefined) {
+      socket.transactions.clear();
+    }
     // turn off server side heart-beat (if needed)
     this.heartbeatOff(socket);
   };
@@ -759,6 +862,7 @@ var StompServer = function (config) {
     socket.heartbeatTime = Date.now();
     if (socket.decoder === undefined) {
       socket.decoder = this._createDecoder();
+      socket.transactions = this._createTransactions();
     }
 
     var frame = null;
