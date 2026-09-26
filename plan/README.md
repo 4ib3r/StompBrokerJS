@@ -32,7 +32,8 @@ README changelog.
   use fake timers for timeouts.
 - `npm run lint`, `npm test` and `npm run coverage` (≥ 95 % lines) pass locally
   before pushing.
-- Behaviour visible to users goes into the "Unreleased" changelog in `README.MD`.
+- Behaviour visible to users goes into the "2.0.0 (unreleased)" changelog in `README.MD`,
+  breaking changes into its "Breaking changes" list.
 
 ## Findings index
 

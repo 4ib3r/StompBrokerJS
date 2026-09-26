@@ -34,8 +34,9 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
         * DISCONNECT closes the connection; frames sent after it are ignored.
         * Default `limits` apply, e.g. frames over 1 MiB and more than 256 subscriptions per connection are
           rejected; see "Limits".
-        * SUBSCRIBE requires an `id` header from STOMP 1.1 clients; ids must be unique per connection;
-          server-side `subscribe()` throws for an id already in use.
+        * SUBSCRIBE requires an `id` header from STOMP 1.1 clients (1.0 clients may omit it, the destination
+          is used instead, also for UNSUBSCRIBE); ids must be unique per connection; the `ack` header must be
+          `auto`, `client` or `client-individual`; server-side `subscribe()` throws for an id already in use.
         * `send` middleware gets JSON bodies as received (text), not as parsed objects; binary bodies are
           `Buffer`s.
         * ERROR frames no longer contain internal error messages, throw a `StompServer.StompError` to send a
@@ -53,12 +54,7 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
     * Malformed frames (invalid command, header line or `content-length`, missing NUL after `content-length`
       octets) are answered with ERROR and the connection is closed.
     * Configurable `limits` (frame size, headers, subscriptions per connection, queued data, CONNECT timeout)
-      and `slowConsumerPolicy`, see "Limits". Frames over 1 MiB are rejected by default.
-    * Every ERROR frame closes the connection, as the specification requires, including rejected commands and
-      unknown subscription ids; unknown commands are answered with ERROR instead of being ignored.
-    * DISCONNECT closes the connection after the RECEIPT; frames sent after DISCONNECT are ignored.
-    * SUBSCRIBE requires an `id` header for STOMP 1.1 clients, subscription ids must be unique per connection,
-      the `ack` header must be `auto`, `client` or `client-individual`.
+      and `slowConsumerPolicy`, see "Limits".
     * Invalid `heart-beat` headers are rejected; very large intervals no longer overflow timers (which made
       the server send heart-beats every millisecond).
     * Subscriptions accepted by asynchronous middleware after the connection closed are no longer leaked.
@@ -86,11 +82,13 @@ var stompServer = new StompServer({server: server});
 
 server.listen(61614);
 
+// messages sent by clients to any destination
 stompServer.subscribe("/**", function(msg, headers) {
   var topic = headers.destination;
   console.log(topic, "->", msg);
 });
 
+// delivered to subscribed clients (not to server-side subscriptions)
 stompServer.send('/test', {}, 'testMsg');
 ```
 

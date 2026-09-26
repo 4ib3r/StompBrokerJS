@@ -1,4 +1,5 @@
 {
+    "private": true,
     "dependencies": {
         "node-static": "^0.7.11",
         "stomp-broker-js": "file:../../"
