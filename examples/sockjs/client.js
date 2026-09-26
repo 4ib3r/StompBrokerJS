@@ -1,14 +1,15 @@
+/* global SockJS, Stomp */
 const socket = new SockJS('/ws');
 const stompClient = Stomp.over(socket);
 
 stompClient.connect({/*headers*/ },
-    function onConnect(data) {
+    function onConnect() {
         console.log('STOMP is now connected!');
 
         // subscription
-        stompClient.subscribe('/echo', (data) => {
+        stompClient.subscribe('/echo', (message) => {
             const ele = document.createElement('div');
-            ele.textContent = data.body;
+            ele.textContent = message.body;
             document.body.appendChild(ele);
             ele.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
         });

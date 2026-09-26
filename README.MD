@@ -3,7 +3,7 @@ NodeJS StompBroker
 
 This is simple NodeJs STOMP 1.1 broker for embedded usage.
 
-[![build state](https://travis-ci.org/4ib3r/StompBrokerJS.svg?branch=master)](https://travis-ci.org/4ib3r/StompBrokerJS)
+[![CI](https://github.com/4ib3r/StompBrokerJS/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/4ib3r/StompBrokerJS/actions/workflows/ci.yml)
 [![Support](https://beerpay.io/4ib3r/StompBrokerJS/badge.svg?style=flat-square)](https://beerpay.io/4ib3r/StompBrokerJS)
 # Features
 * Destination wildcards

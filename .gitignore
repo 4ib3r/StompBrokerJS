@@ -9,8 +9,8 @@
 # Directories
 node_modules/
 
-# Lock files
-package-lock.json
+# Test coverage
+coverage/
 
 # OS files
 .DS_Store
