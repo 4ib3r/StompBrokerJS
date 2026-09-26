@@ -7,6 +7,7 @@ var assert = require('chai').assert;
 var support = require('./support/raw-client');
 
 var delay = support.delay;
+var buildFrame = support.buildFrame;
 
 
 describe('StompServer broker', function () {
@@ -517,6 +518,70 @@ describe('StompServer broker', function () {
       });
     });
 
+    it('relays application/json bodies byte for byte', function () {
+      var body = '{"n": 12345678901234567890,   "a":1}';
+      var sender;
+      var receiver;
+      return ctx.start().then(function () {
+        return Promise.all([connectedClient(), connectedClient()]);
+      }).then(function (clients) {
+        sender = clients[0];
+        receiver = clients[1];
+        return receiver.subscribe('/json', 's1');
+      }).then(function () {
+        sender.send('SEND', {destination: '/json', 'content-type': 'application/json'}, body);
+        return receiver.waitForCommand('MESSAGE');
+      }).then(function (msg) {
+        assert.equal(msg.body, body);
+      });
+    });
+
+    it('relays an empty application/json body without closing the connection', function () {
+      var sender;
+      var receiver;
+      return ctx.start().then(function () {
+        return Promise.all([connectedClient(), connectedClient()]);
+      }).then(function (clients) {
+        sender = clients[0];
+        receiver = clients[1];
+        return receiver.subscribe('/json', 's1');
+      }).then(function () {
+        sender.send('SEND', {destination: '/json', 'content-type': 'application/json'}, '');
+        return receiver.waitForCommand('MESSAGE');
+      }).then(function (msg) {
+        assert.equal(msg.body, '');
+        assert.isFalse(sender.closed);
+      });
+    });
+
+    it('decodes JSON with content-type parameters for server-side subscribers', function () {
+      var received;
+      return ctx.start().then(function (broker) {
+        broker.subscribe('/json', function (body) {
+          received = body;
+        });
+        return connectedClient();
+      }).then(function (client) {
+        client.send('SEND', {destination: '/json', 'content-type': 'Application/JSON; charset=utf-8'}, '{"a":1}');
+        return client.flush();
+      }).then(function () {
+        assert.deepEqual(received, {a: 1});
+      });
+    });
+
+    it('passes the object given to send() to send event listeners', function () {
+      var obj = {a: 1};
+      var event;
+      return ctx.start().then(function (broker) {
+        broker.on('send', function (e) {
+          event = e;
+        });
+        broker.send('/json', {'content-type': 'application/json'}, obj);
+        assert.strictEqual(event.frame.body, obj);
+        assert.equal(event.frame.headers['content-length'], '7');
+      });
+    });
+
     it('server send() of an object with application/json reaches clients as JSON', function () {
       return ctx.start().then(function (broker) {
         return connectedClient().then(function (client) {
@@ -527,6 +592,112 @@ describe('StompServer broker', function () {
         });
       }).then(function (msg) {
         assert.deepEqual(JSON.parse(msg.body), {b: 2});
+      });
+    });
+  });
+
+
+  describe('frame transport', function () {
+    function pair() {
+      return Promise.all([connectedClient(), connectedClient()]).then(function (clients) {
+        return clients[1].subscribe('/t', 's1').then(function () {
+          return {sender: clients[0], receiver: clients[1]};
+        });
+      });
+    }
+
+    it('delivers a large frame sent in 16 KB messages, as stompjs splits it', function () {
+      var body = new Array(100 * 1024 + 1).join('x') + 'end';
+      var raw = buildFrame('SEND', {destination: '/t'}, body);
+      return ctx.start().then(pair).then(function (p) {
+        for (var i = 0; i < raw.length; i += 16 * 1024) {
+          p.sender.sendRaw(raw.substring(i, i + 16 * 1024));
+        }
+        return p.receiver.waitForCommand('MESSAGE');
+      }).then(function (msg) {
+        assert.equal(msg.body, body);
+        assert.equal(msg.headers['content-length'], String(body.length));
+      });
+    });
+
+    it('handles every frame of a message containing several frames', function () {
+      var clients;
+      return ctx.start().then(pair).then(function (p) {
+        clients = p;
+        p.sender.sendRaw(buildFrame('SEND', {destination: '/t'}, 'one') +
+          '\n' + buildFrame('SEND', {destination: '/t'}, 'two'));
+        return p.receiver.waitFor(function (f) {
+          return f.command === 'MESSAGE' && f.body === 'two';
+        });
+      }).then(function () {
+        assert.deepEqual(clients.receiver.messages().map(function (m) {
+          return m.body;
+        }), ['one', 'two']);
+      });
+    });
+
+    it('relays a binary body byte for byte as a binary message', function () {
+      var body = Buffer.from([0xff, 0x00, 0x80]);
+      return ctx.start().then(pair).then(function (p) {
+        p.sender.sendRaw(Buffer.concat([
+          Buffer.from('SEND\ndestination:/t\ncontent-length:3\n\n'), body, Buffer.from([0])
+        ]));
+        return p.receiver.waitForCommand('MESSAGE');
+      }).then(function (msg) {
+        assert.isTrue(Buffer.isBuffer(msg.raw), 'binary message');
+        assert.equal(msg.headers['content-length'], '3');
+        assert.isTrue(support.bodyBytes(msg).equals(body));
+      });
+    });
+
+    it('relays a text body as a text message', function () {
+      return ctx.start().then(pair).then(function (p) {
+        p.sender.send('SEND', {destination: '/t'}, 'żółć');
+        return p.receiver.waitForCommand('MESSAGE');
+      }).then(function (msg) {
+        assert.isString(msg.raw);
+        assert.equal(msg.body, 'żółć');
+      });
+    });
+
+    it('rejects a frame smuggled in a header with ERROR and delivers nothing', function () {
+      var clients;
+      return ctx.start().then(pair).then(function (p) {
+        clients = p;
+        p.sender.sendRaw('SEND\ndestination:/t\nx\\nsubscription\\cHACK\0MESSAGE\ndestination:/t\n\nforged\0');
+        return p.sender.waitForCommand('ERROR');
+      }).then(function () {
+        return clients.sender.waitForClose();
+      }).then(function () {
+        return clients.receiver.flush();
+      }).then(function () {
+        assert.lengthOf(clients.receiver.messages(), 0);
+      });
+    });
+
+    it('escapes header names and values of relayed messages', function () {
+      return ctx.start().then(pair).then(function (p) {
+        p.sender.sendRaw('SEND\ndestination:/t\nx\\nsubscription\\cHACK:a\\nb\n\nbody\0');
+        return p.receiver.waitForCommand('MESSAGE');
+      }).then(function (msg) {
+        assert.equal(msg.headers.subscription, 's1');
+        assert.equal(msg.headers['x\\nsubscription\\cHACK'], 'a\\nb');
+      });
+    });
+
+    it('decodes STOMP frames like CONNECT frames', function () {
+      var headers;
+      return ctx.start().then(function (broker) {
+        broker.on('connected', function (sessionId, h) {
+          headers = h;
+        });
+        var client = ctx.client();
+        return client.open().then(function () {
+          client.sendRaw('STOMP\naccept-version:1.1\npasscode:a\\nb\n\n\0');
+          return client.waitForCommand('CONNECTED');
+        });
+      }).then(function () {
+        assert.equal(headers.passcode, 'a\\nb');
       });
     });
   });
