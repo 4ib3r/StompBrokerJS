@@ -294,7 +294,7 @@ var StompServer = function (config) {
     for (var i = 0; i < this.subscribes.length; i++) {
       var sub = this.subscribes[i];
       if (sub.id === subId && sub.sessionId === socket.sessionId) {
-        this.subscribes.splice(i--, 1);
+        this.subscribes.splice(i, 1);
         this.emit('unsubscribe', sub);
         return true;
       }

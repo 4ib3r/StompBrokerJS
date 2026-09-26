@@ -198,7 +198,7 @@ describe('StompServer broker', function () {
         return client.subscribe('/chat', 's1');
       }).then(function () {
         client.send('SEND', {destination: '/chat'}, 'hi');
-        return client.collect(100);
+        return client.flush();
       }).then(function () {
         assert.lengthOf(client.messages(), 0);
       });
@@ -231,7 +231,7 @@ describe('StompServer broker', function () {
         return Promise.all([client.subscribe('/t', 's1'), client.subscribe('/t.*', 's2')]);
       }).then(function () {
         ctx.broker.send('/t', {}, 'x');
-        return client.collect(100);
+        return client.flush();
       }).then(function () {
         assert.deepEqual(client.messages().map(function (m) {
           return m.headers.subscription;
@@ -251,12 +251,11 @@ describe('StompServer broker', function () {
         client = c;
         return client.subscribe('/t', 's1');
       }).then(function () {
-        client.send('UNSUBSCRIBE', {id: 's1'});
-        return delay(50);
+        return client.sendWithReceipt('UNSUBSCRIBE', {id: 's1'});
       }).then(function () {
         assert.equal(unsubscribed.id, 's1');
         ctx.broker.send('/t', {}, 'x');
-        return client.collect(100);
+        return client.flush();
       }).then(function () {
         assert.lengthOf(client.messages(), 0);
       });
@@ -283,8 +282,7 @@ describe('StompServer broker', function () {
         b = clients[1];
         return a.subscribe('/t', 'shared-id');
       }).then(function () {
-        b.send('UNSUBSCRIBE', {id: 'shared-id'});
-        return delay(50);
+        return b.sendWithReceipt('UNSUBSCRIBE', {id: 'shared-id'});
       }).then(function () {
         ctx.broker.send('/t', {}, 'x');
         return a.waitForCommand('MESSAGE');
@@ -361,7 +359,7 @@ describe('StompServer broker', function () {
       }).then(function () {
         ctx.broker.send('/t', {}, 'a');
         ctx.broker.send('/t', {}, 'b');
-        return client.collect(100);
+        return client.flush();
       }).then(function () {
         var ids = client.messages().map(function (m) {
           return m.headers['message-id'];
@@ -603,9 +601,13 @@ describe('StompServer broker', function () {
         receiver = clients[1];
         return Promise.all([receiver.subscribe('/blocked', 's1'), receiver.subscribe('/open', 's2')]);
       }).then(function () {
+        // frames of one sender are handled in order: once '/open' arrives,
+        // '/blocked' would already have been delivered
         sender.send('SEND', {destination: '/blocked'}, 'x');
         sender.send('SEND', {destination: '/open'}, 'y');
-        return receiver.collect(100);
+        return receiver.waitFor(function (f) {
+          return f.command === 'MESSAGE' && f.body === 'y';
+        });
       }).then(function () {
         assert.deepEqual(receiver.messages().map(function (m) {
           return m.body;
