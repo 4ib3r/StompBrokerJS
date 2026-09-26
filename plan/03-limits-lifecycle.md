@@ -1,6 +1,6 @@
 # Step 3 — Limits and session lifecycle
 
-**Release:** 1.5.0 · **Size:** M (2–3 days) · **Depends on:** step 2
+**Release:** 2.0.0 · **Size:** M (2–3 days) · **Depends on:** step 2
 (decoder exposes `pending` and header counts)
 
 ## As implemented
@@ -200,5 +200,5 @@ Existing tests to update:
   ERROR; DISCONNECT closes the socket; frames > 1 MiB rejected by default;
   SUBSCRIBE without `id` rejected for 1.1 clients; heart-beats < 1 s
   clamped. All configurable except the spec-mandated ones.
-- Decision needed: ship as 1.5.0 (recommended) or hold for 2.0 (see
-  [README](README.md#open-decisions)).
+- Released in 2.0.0 together with the other steps (see
+  [README](README.md)).

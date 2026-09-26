@@ -26,7 +26,20 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 * 0.1.1 Added wildcards to destination, change subscribe method [no backward compatibility]
 * 0.1.2 Bug fixes, changed websocket library, updated documentation.
 * 0.1.3 Unsubscribe on server, updated documentation, added events.
-* Unreleased
+* 2.0.0 (unreleased)
+    * Breaking changes:
+        * Node.js 20 or newer.
+        * Every ERROR frame closes the connection (rejected commands, unknown subscription ids, malformed
+          frames, exceeded limits); unknown commands are answered with ERROR.
+        * DISCONNECT closes the connection; frames sent after it are ignored.
+        * Default `limits` apply, e.g. frames over 1 MiB and more than 256 subscriptions per connection are
+          rejected; see "Limits".
+        * SUBSCRIBE requires an `id` header from STOMP 1.1 clients; ids must be unique per connection;
+          server-side `subscribe()` throws for an id already in use.
+        * `send` middleware gets JSON bodies as received (text), not as parsed objects; binary bodies are
+          `Buffer`s.
+        * ERROR frames no longer contain internal error messages, throw a `StompServer.StompError` to send a
+          message to the client.
     * Malformed frames (e.g. missing destination) are answered with ERROR instead of crashing the process;
       socket errors are emitted only when an `error` listener is registered.
     * Frames are decoded incrementally: a WebSocket message may contain several frames and a frame may span
