@@ -46,6 +46,9 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
           immediately; the transaction must have been started with BEGIN.
         * `addMiddleware`, `setMiddleware` and `removeMiddleware` throw a `TypeError` for commands without
           middleware (e.g. a typo like `'conect'`).
+        * Middleware and the `subscribe` / `unsubscribe` events (`subscription.socket`) get a session object
+          (`sessionId`, `version`, `state`, `close()`) instead of the raw WebSocket; `subscribes` is a read-only
+          snapshot; the internal `heartbeatOn` / `heartbeatOff` methods are gone.
     * Malformed frames (e.g. missing destination) are answered with ERROR instead of crashing the process;
       socket errors are emitted only when an `error` listener is registered.
     * Frames are decoded incrementally: a WebSocket message may contain several frames and a frame may span
@@ -66,6 +69,8 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
     * ERROR frames carry the message of a `StompError` or `Internal error`, not internal error details;
       the passcode is no longer passed to `debug`.
     * MESSAGE frames are serialized once per message instead of once per subscriber.
+    * Routing uses a destination trie: the cost of a message depends on the destination depth and the number
+      of matching subscriptions, not on the number of subscriptions (`bench/fanout.js`).
     * Transactions: BEGIN, COMMIT and ABORT; limits `maxTransactions` and `maxTransactionBytes`.
     * ACK and NACK are validated and answered (RECEIPT) instead of being ignored; delivery stays at-most-once.
     * Middleware for `begin`, `commit`, `abort`, `ack` and `nack`.

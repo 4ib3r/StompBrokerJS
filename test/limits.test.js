@@ -277,8 +277,8 @@ describe('Limits and lifecycle', function () {
 
     it('removes the subscriptions of a closed session in linear time', function () {
       return ctx.start({limits: {maxSubscriptions: Infinity}}).then(function (broker) {
-        var closing = {sessionId: 'closing'};
-        var other = {sessionId: 'other'};
+        var closing = broker._createSession({readyState: 1});
+        var other = broker._createSession({readyState: 1});
         for (var i = 0; i < 50000; i++) {
           broker.onSubscribe(closing, {dest: '/a', id: 'c' + i});
           broker.onSubscribe(other, {dest: '/a', id: 'o' + i});
@@ -288,7 +288,7 @@ describe('Limits and lifecycle', function () {
         var ms = Number(process.hrtime.bigint() - start) / 1e6;
         assert.lengthOf(broker.subscribes, 50000);
         assert.isTrue(broker.subscribes.every(function (sub) {
-          return sub.sessionId === 'other';
+          return sub.sessionId === other.sessionId;
         }));
         assert.isBelow(ms, 500);
       });
