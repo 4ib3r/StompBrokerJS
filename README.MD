@@ -27,8 +27,18 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 * 0.1.2 Bug fixes, changed websocket library, updated documentation.
 * 0.1.3 Unsubscribe on server, updated documentation, added events.
 * Unreleased
-    * Malformed frames (invalid JSON body, missing destination) are answered with ERROR instead of crashing the process;
+    * Malformed frames (e.g. missing destination) are answered with ERROR instead of crashing the process;
       socket errors are emitted only when an `error` listener is registered.
+    * Frames are decoded incrementally: a WebSocket message may contain several frames and a frame may span
+      several messages (stompjs splits frames larger than 16 KB, those were truncated before).
+    * Binary bodies are relayed byte for byte, as binary WebSocket messages; text bodies as text messages.
+    * Header names and values are escaped in relayed frames, headers containing NUL or CR are rejected with ERROR;
+      a sender can no longer inject headers or frames into MESSAGEs of other clients. Header whitespace is kept.
+    * `application/json` bodies are relayed as received (no re-serialization), and decoded only for server-side
+      subscribers and `send` event listeners; invalid JSON is passed on as text instead of closing the connection.
+      `send` middleware sees the body as received (text), no longer as a parsed object.
+    * Malformed frames (invalid command, header line or `content-length`, missing NUL after `content-length`
+      octets, frames over 100 MiB) are answered with ERROR and the connection is closed.
     * Frames other than CONNECT/STOMP are rejected until the client is connected.
     * MESSAGE frames contain `destination` and `message-id` headers, `content-length` is the UTF-8 byte length;
       `receipt`, `message-id` and `subscription` headers sent by clients are not forwarded.
@@ -85,6 +95,12 @@ server.on('upgrade', function (request, socket, head) {
   }
 });
 ```
+
+## Message bodies
+Bodies are relayed as they are received: text sent in text WebSocket messages stays text, binary data sent
+in binary messages is delivered as a `Buffer` and as binary messages to subscribers.
+For server-side subscribers (and `send` event listeners) `application/json` bodies are decoded to objects;
+`stompServer.send(topic, {'content-type': 'application/json'}, object)` serializes an object body.
 
 ## Validating clients on connect
 Middleware receives `(socket, args, next)`; return `next()` to continue or a falsy value to reject.

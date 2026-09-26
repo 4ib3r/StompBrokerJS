@@ -315,15 +315,22 @@ describe('Review findings', function () {
   }
 
   describe('robustness', function () {
-    it('invalid JSON body does not crash the broker', function () {
+    it('invalid JSON body does not crash the broker and is passed on as text', function () {
       var client;
+      var received;
       return expectNoUncaught(function () {
         return ctx.start().then(function () {
+          ctx.broker.subscribe('/a', function (body) {
+            received = body;
+          });
           client = ctx.client();
           return client.connect();
         }).then(function () {
           client.send('SEND', {destination: '/a', 'content-type': 'application/json'}, '{bad');
-          return client.waitForCommand('ERROR');
+          return client.flush();
+        }).then(function () {
+          assert.equal(received, '{bad');
+          assert.isFalse(client.closed);
         });
       });
     });

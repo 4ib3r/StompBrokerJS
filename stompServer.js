@@ -3,6 +3,7 @@ var util            = require('util');
 
 var stomp           = require('./lib/stomp');
 var stompUtils      = require('./lib/stomp-utils');
+var FrameDecoder    = require('./lib/parser').FrameDecoder;
 var BYTES           = require('./lib/bytes');
 
 var protocolAdapter = require('./lib/adapter');
@@ -62,6 +63,7 @@ var StompServer = function (config) {
    */
   this.socket.on('connection', function (ws) {
     ws.sessionId = stompUtils.genId();
+    ws.decoder = new FrameDecoder();
 
     this.emit('connecting', ws.sessionId);
     this.conf.debug('Connect', ws.sessionId);
@@ -162,7 +164,13 @@ var StompServer = function (config) {
 
   /** Headers controlled by the broker, never copied from a SEND frame */
   var RESERVED_HEADERS = ['destination', 'subscription', 'message-id', 'receipt',
-    'content-length', 'bytes_message', 'transaction'];
+    'content-length', 'transaction'];
+
+  /** True for an application/json media type, parameters (e.g. charset) ignored */
+  function isJson(contentType) {
+    return typeof contentType === 'string' &&
+      contentType.split(';')[0].trim().toLowerCase() === 'application/json';
+  }
 
 
   /**
@@ -216,7 +224,7 @@ var StompServer = function (config) {
    */
   this.onSend = withMiddleware('send', function (socket, args) {
     var destTokens = stompUtils.tokenizeDestination(args.dest);
-    var bodyObj = args.frame.body;
+    var originalBody = args.frame.body;
     var frame = this.frameSerializer(args.frame);
 
     if (frame.body !== undefined && frame.body !== null &&
@@ -239,17 +247,51 @@ var StompServer = function (config) {
 
     frame.headers = headers;
     args.frame = frame;
-    this.emit('send', {
-      frame: {
-        headers: headers,
-        body: bodyObj
-      },
-      dest: args.dest
-    });
+
+    // body for in-process consumers: the object given to send(), or the
+    // decoded JSON text; computed only when somebody needs it
+    var self = this;
+    var decoded;
+    var isDecoded = false;
+    function bodyObj() {
+      if (!isDecoded) {
+        decoded = originalBody !== frame.body ? originalBody : self._decodeBody(headers, frame.body);
+        isDecoded = true;
+      }
+      return decoded;
+    }
+
+    if (this.listenerCount('send') > 0) {
+      this.emit('send', {
+        frame: {
+          headers: headers,
+          body: bodyObj()
+        },
+        dest: args.dest
+      });
+    }
 
     this._sendToSubscriptions(socket, args, bodyObj, destTokens);
     return true;
   });
+
+
+  /**
+   * Decode a JSON body for server-side consumers. Invalid JSON is passed on
+   * as text: it is the sender's data, not a broker failure.
+   * @private
+   */
+  this._decodeBody = function (headers, body) {
+    if (typeof body !== 'string' || !isJson(headers['content-type'])) {
+      return body;
+    }
+    try {
+      return JSON.parse(body);
+    } catch (err) {
+      this.conf.debug('Invalid JSON body', headers.destination, err.message);
+      return body;
+    }
+  };
 
 
   /**
@@ -381,7 +423,7 @@ var StompServer = function (config) {
    *
    * @param {object} socket websocket to send the message on
    * @param {string} args onSend args
-   * @param {*} bodyObj parsed body passed to server-side subscribers
+   * @param {function(): *} bodyObj returns the body passed to server-side subscribers
    * @param {string[]} destTokens tokenized destination
    * @private
    */
@@ -403,7 +445,7 @@ var StompServer = function (config) {
             body: args.frame.body
           });
         } else {
-          this.emit(sub.id, bodyObj, headers);
+          this.emit(sub.id, bodyObj(), headers);
         }
       }
     }
@@ -429,7 +471,7 @@ var StompServer = function (config) {
     };
     var args = {
       dest: topic,
-      frame: this.frameParser(frame)
+      frame: frame
     };
     this.onSend(selfSocket, args);
   }.bind(this);
@@ -440,27 +482,32 @@ var StompServer = function (config) {
   //<editor-fold defaultstate="collapsed" desc="Frames">
 
   /**
-   * Serialize frame to string for send
+   * Serialize an object body of an application/json message to JSON text.
+   * String and Buffer bodies are sent as they are.
    *
    * @param {MsgFrame} frame Message frame
    * @return {MsgFrame} modified frame
    * */
   this.frameSerializer = function (frame) {
-    if (frame.body !== undefined && frame.headers['content-type'] === 'application/json' && !Buffer.isBuffer(frame.body)) {
-      frame.body = JSON.stringify(frame.body);
+    var body = frame.body;
+    if (body !== undefined && body !== null && typeof body !== 'string' && !Buffer.isBuffer(body) &&
+        isJson(frame.headers['content-type'])) {
+      frame.body = JSON.stringify(body);
     }
     return frame;
   };
 
 
   /**
-   * Parse frame to object for reading
+   * Parse the text body of an application/json frame to an object.
    *
+   * @deprecated no longer applied to incoming frames: bodies are relayed as
+   *   received and decoded only for server-side subscribers
    * @param {MsgFrame} frame Message frame
    * @return {MsgFrame} modified frame
    * */
   this.frameParser = function (frame) {
-    if (typeof frame.body === 'string' && frame.headers['content-type'] === 'application/json') {
+    if (typeof frame.body === 'string' && isJson(frame.headers['content-type'])) {
       frame.body = JSON.parse(frame.body);
     }
     return frame;
@@ -572,30 +619,52 @@ var StompServer = function (config) {
   };
 
 
+  /**
+   * Dispatch one frame to its command handler
+   * @private
+   */
+  this._handleFrame = function (socket, frame) {
+    if (!Object.prototype.hasOwnProperty.call(this.frameHandler, frame.command)) {
+      this.conf.debug('Command not found', socket.sessionId, frame.command);
+      return;
+    }
+    if (!socket.stompConnected && CONNECT_COMMANDS.indexOf(frame.command) < 0) {
+      stomp.fail(socket, 'Not connected', 'CONNECT frame is required before ' + frame.command);
+      return;
+    }
+    this.frameHandler[frame.command](socket, frame);
+  };
+
+
   /** Commands accepted before the session is connected */
   var CONNECT_COMMANDS = ['CONNECT', 'STOMP'];
 
+  /**
+   * Handle data received on a socket: decode every complete frame in it and
+   * dispatch them in order. Incomplete frames wait for the next data.
+   *
+   * @param {WebSocket} socket Source socket
+   * @param {string|Buffer} data Text or binary message
+   */
   this.parseRequest = function(socket, data) {
     // any incoming data counts as a heart-beat
     socket.heartbeatTime = Date.now();
+    if (socket.decoder === undefined) {
+      socket.decoder = new FrameDecoder();
+    }
 
-    var frame;
+    var frame = null;
     try {
-      frame = stompUtils.parseFrame(data, socket.stompVersion);
-      if (frame === null) {
-        // only EOLs, it's ping
-        this.conf.debug('PONG');
-        return;
+      socket.decoder.push(data);
+      // stop when a frame closed the connection (ERROR, rejected CONNECT)
+      while (!socket.stompClosed && stompUtils.isOpen(socket)) {
+        frame = null;
+        frame = socket.decoder.shift(socket.stompVersion);
+        if (frame === null) {
+          break;
+        }
+        this._handleFrame(socket, frame);
       }
-      if (!Object.prototype.hasOwnProperty.call(this.frameHandler, frame.command)) {
-        return 'Command not found';
-      }
-      if (!socket.stompConnected && CONNECT_COMMANDS.indexOf(frame.command) < 0) {
-        stomp.fail(socket, 'Not connected', 'CONNECT frame is required before ' + frame.command);
-        return;
-      }
-      frame = this.frameParser(frame);
-      return this.frameHandler[frame.command](socket, frame);
     } catch (err) {
       this.conf.debug('Frame processing error', socket.sessionId, err);
       var receipt = frame && frame.headers ? frame.headers.receipt : undefined;
