@@ -154,16 +154,17 @@ describe('StompServer broker', function () {
       });
     });
 
-    it('answers unknown commands without closing the connection', function () {
+    it('answers unknown commands with ERROR and closes the connection', function () {
       var client;
       return ctx.start().then(function () {
         return connectedClient();
       }).then(function (c) {
         client = c;
         client.send('FOO', {});
-        return delay(50);
-      }).then(function () {
-        assert.isFalse(client.closed);
+        return client.waitForCommand('ERROR');
+      }).then(function (error) {
+        assert.equal(error.body, 'Unknown command FOO');
+        return client.waitForClose();
       });
     });
   });
@@ -772,17 +773,15 @@ describe('StompServer broker', function () {
         receiver = clients[1];
         return Promise.all([receiver.subscribe('/blocked', 's1'), receiver.subscribe('/open', 's2')]);
       }).then(function () {
-        // frames of one sender are handled in order: once '/open' arrives,
-        // '/blocked' would already have been delivered
         sender.send('SEND', {destination: '/blocked'}, 'x');
-        sender.send('SEND', {destination: '/open'}, 'y');
-        return receiver.waitFor(function (f) {
-          return f.command === 'MESSAGE' && f.body === 'y';
-        });
+        return sender.waitForCommand('ERROR');
+      }).then(function (error) {
+        assert.equal(error.body, 'SEND to /blocked rejected');
+        return sender.waitForClose();
       }).then(function () {
-        assert.deepEqual(receiver.messages().map(function (m) {
-          return m.body;
-        }), ['y']);
+        return receiver.flush();
+      }).then(function () {
+        assert.lengthOf(receiver.messages(), 0);
       });
     });
 

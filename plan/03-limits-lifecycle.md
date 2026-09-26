@@ -3,6 +3,36 @@
 **Release:** 1.5.0 · **Size:** M (2–3 days) · **Depends on:** step 2
 (decoder exposes `pending` and header counts)
 
+## As implemented
+
+Differences from the design below, decided while implementing:
+
+- **No `heartbeatMin`:** the negotiated interval is `max(server, client)`,
+  so a client can't make it shorter than the server's own setting. Only the
+  upper bound is clamped (to 2³¹−1 ms, the largest timer delay), which is
+  what caused the 1 ms interval. Not configurable.
+- **No `maxPendingBytes`:** the decoder's `maxFrameSize` already bounds the
+  data buffered for an incomplete frame; it is now also checked for frames
+  that arrive complete.
+- **No `LimitError`:** limit violations are `ProtocolError`s with specific
+  messages (`Frame too large`, `Too many headers`, `Header too long`).
+- **Connection state** stays in socket flags for now (`stompConnected`,
+  `stompDisconnecting`, `stompDisconnected`, `stompClosed`); the `Session`
+  state machine is step 5.
+- **Tests use short real limits** (e.g. `connectTimeout: 100`) and wait for
+  events (ERROR, close) instead of fake timers, which don't combine well with
+  real sockets; no fixed sleeps. `sinon` is not needed.
+- **Error events:** errors thrown by middleware or listeners (not
+  `StompError`) are emitted as `error` in addition to `debug`; clients see
+  `Internal error`.
+- **Server-side `subscribe()`** throws for an id that is already in use (the
+  per-session index can't hold duplicates; they could never be unsubscribed
+  individually before either).
+- **Transport defaults** (`perMessageDeflate: false`, `maxPayload`) are only
+  applied to the `ws` transport.
+- `sendFrame` still accepts plain objects (public util) but the broker's
+  fan-out uses `Frame.MessageTemplate`.
+
 ## Goal
 
 No single client can exhaust CPU or memory, and the session state machine

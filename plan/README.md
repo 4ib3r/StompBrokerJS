@@ -7,8 +7,8 @@ builds on the previous one and must leave CI green.
 | Step | Scope | Release | Size | Status |
 |---|---|---|---|---|
 | 1 | Tooling, CI, dependencies | 1.3.2 | S | done (#36) |
-| 2 | [Streaming, binary-safe parser](02-parser.md) | 1.4.0 | M | in review |
-| 3 | [Limits and session lifecycle](03-limits-lifecycle.md) | 1.5.0 | M | planned |
+| 2 | [Streaming, binary-safe parser](02-parser.md) | 1.4.0 | M | done (#39) |
+| 3 | [Limits and session lifecycle](03-limits-lifecycle.md) | 1.5.0 | M | in review |
 | 4 | [Transactions, ACK/NACK](04-transactions-ack.md) | 1.5.0 | S–M | planned |
 | 5 | [2.0 architecture refactor](05-architecture-2.0.md) | 2.0.0 | L | planned |
 
