@@ -64,6 +64,24 @@ describe('lib/stomp-utils', function () {
       assert.equal(stompUtils.parseFrame(Buffer.from(raw)).body, body);
     });
 
+    it('uses content-length as a UTF-8 byte count for string input', function () {
+      var body = 'żółć\0x';
+      var raw = 'SEND\ndestination:/a\ncontent-length:' + Buffer.byteLength(body) + '\n\n' + body + '\0';
+      assert.equal(stompUtils.parseFrame(raw).body, body);
+    });
+
+    it('falls back to NULL terminator when content-length exceeds the data', function () {
+      var frame = stompUtils.parseFrame('SEND\ndestination:/a\ncontent-length:99\n\nabc\0');
+      assert.equal(frame.body, 'abc');
+    });
+
+    it('parses CRLF line endings', function () {
+      var frame = stompUtils.parseFrame('SEND\r\ndestination:/a\r\n\r\nbody\0');
+      assert.equal(frame.command, 'SEND');
+      assert.equal(frame.headers.destination, '/a');
+      assert.equal(frame.body, 'body');
+    });
+
     it('ignores heart-beat EOLs before the command', function () {
       var frame = stompUtils.parseFrame('\n\nCONNECT\naccept-version:1.1\n\n\0');
       assert.equal(frame.command, 'CONNECT');
