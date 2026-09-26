@@ -3,6 +3,23 @@
 **Release:** 2.0.0 · **Size:** S–M (1–2 days) · **Depends on:** step 3
 (ERROR closes, per-session state, `ack` mode validated at SUBSCRIBE)
 
+## As implemented
+
+- **ACK/NACK are no-ops** (decided): validated, passed to `ack`/`nack`
+  middleware and answered with RECEIPT; delivery stays at-most-once. The
+  subscription's `ack` mode (`client`, `client-individual`) doesn't change
+  that; README "Delivery guarantees" says so.
+- **`maxTransactionBytes` is per connection** (all open transactions
+  together), not per transaction: 16 × 4 MiB per connection would be too
+  much buffered data per client.
+- **Header checks before middleware** (missing `transaction`, `message-id`,
+  or `subscription` for 1.1) as for SUBSCRIBE; state checks (open
+  transaction, own subscription) after middleware.
+- STOMP 1.0 ACK needs only `message-id`.
+- Transaction store: `lib/transactions.js`, one per connection
+  (`socket.transactions`), cleared on close; buffered SENDs have passed
+  send middleware and their destination is validated when they arrive.
+
 ## Goal
 
 Every STOMP 1.1 client command is handled: transactions have real
@@ -40,7 +57,7 @@ Per session: `Map<txId, {frames: Frame[], bytes: number}>`.
 | Command | Behaviour |
 |---|---|
 | `BEGIN` | requires `transaction`; id must not be open (ERROR); at most `limits.maxTransactions` (default 16) open per session; RECEIPT if requested |
-| `SEND` with `transaction` | tx must be open (ERROR); frame buffered, not delivered; `bytes` checked against `limits.maxTransactionBytes` (default 4 MiB) |
+| `SEND` with `transaction` | tx must be open (ERROR); frame buffered, not delivered; bytes of all open transactions of the connection checked against `limits.maxTransactionBytes` (default 4 MiB) |
 | `ACK`/`NACK` with `transaction` | tx must be open; recorded no-op |
 | `COMMIT` | tx must be open; buffered frames delivered in order through the normal routing path; tx removed; RECEIPT |
 | `ABORT` | tx must be open; frames discarded; tx removed; RECEIPT |

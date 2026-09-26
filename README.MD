@@ -11,13 +11,14 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
     * \* is used to match exactly one name in a path (`/a.*` matches `/a.b`, not `/a` or `/a.b.c`)
     * \*\* is used to recursively match path names (`/a.**` matches `/a.b` and `/a.b.c`)
 * STOMP 1.0 and 1.1 (version negotiation, header escaping, heart-beats in both directions)
+* Transactions (BEGIN / COMMIT / ABORT)
+* ACK / NACK (at-most-once delivery, see "Delivery guarantees")
 * WebSocket (`ws`) and SockJS transports
 
 # TODO
 * Authorization
-* Acknowledgment
+* Redelivery of unacknowledged messages
 * Async send messages
-* Transactions
 * Composite Destinations
 * Message selectors
 
@@ -41,6 +42,10 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
           `Buffer`s.
         * ERROR frames no longer contain internal error messages, throw a `StompServer.StompError` to send a
           message to the client.
+        * SEND frames with a `transaction` header are delivered on COMMIT (and dropped on ABORT) instead of
+          immediately; the transaction must have been started with BEGIN.
+        * `addMiddleware`, `setMiddleware` and `removeMiddleware` throw a `TypeError` for commands without
+          middleware (e.g. a typo like `'conect'`).
     * Malformed frames (e.g. missing destination) are answered with ERROR instead of crashing the process;
       socket errors are emitted only when an `error` listener is registered.
     * Frames are decoded incrementally: a WebSocket message may contain several frames and a frame may span
@@ -61,6 +66,9 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
     * ERROR frames carry the message of a `StompError` or `Internal error`, not internal error details;
       the passcode is no longer passed to `debug`.
     * MESSAGE frames are serialized once per message instead of once per subscriber.
+    * Transactions: BEGIN, COMMIT and ABORT; limits `maxTransactions` and `maxTransactionBytes`.
+    * ACK and NACK are validated and answered (RECEIPT) instead of being ignored; delivery stays at-most-once.
+    * Middleware for `begin`, `commit`, `abort`, `ack` and `nack`.
     * Frames other than CONNECT/STOMP are rejected until the client is connected.
     * MESSAGE frames contain `destination` and `message-id` headers, `content-length` is the UTF-8 byte length;
       `receipt`, `message-id` and `subscription` headers sent by clients are not forwarded.
@@ -119,7 +127,9 @@ limits: {
   maxHeaderLength: 8192,         // characters per header line
   maxSubscriptions: 256,         // subscriptions per connection
   maxBufferedAmount: 8388608,    // bytes queued for a connection before it counts as a slow consumer
-  connectTimeout: 10000          // ms from opening the socket to the CONNECT frame
+  connectTimeout: 10000,         // ms from opening the socket to the CONNECT frame
+  maxTransactions: 16,           // open transactions per connection
+  maxTransactionBytes: 4194304   // body bytes buffered in the open transactions of a connection
 }
 ```
 A client that breaks a limit gets an ERROR frame and the connection is closed. Messages for a slow consumer
@@ -145,6 +155,19 @@ in binary messages is delivered as a `Buffer` and as binary messages to subscrib
 For server-side subscribers (and `send` event listeners) `application/json` bodies are decoded to objects;
 `stompServer.send(topic, {'content-type': 'application/json'}, object)` serializes an object body.
 
+## Delivery guarantees
+The broker keeps no messages: a message is written once to each matching subscription that is connected at
+that moment (at-most-once). ACK and NACK frames are validated (the subscription must belong to the
+connection) and answered with a RECEIPT when requested, whatever the subscription's `ack` mode, but they
+don't cause redelivery. To act on them, use `ack` / `nack` middleware, which receives
+`{subscription, messageId, transaction}`.
+
+## Transactions
+SEND frames with a `transaction` header are buffered until COMMIT, which delivers them in order, or ABORT,
+which drops them; the transaction is started with BEGIN. `send` middleware runs when each SEND arrives, so a
+COMMIT delivers everything that was accepted. Open transactions of a closed connection are dropped.
+ACK and NACK may name an open transaction as well.
+
 ## Validating clients on connect
 Middleware receives `(socket, args, next)`; return `next()` to continue or a falsy value to reject.
 A rejected command is answered with an ERROR frame and the connection is closed. Middleware may return a Promise.
@@ -155,7 +178,8 @@ stompServer.addMiddleware('connect', function (socket, args, next) {
   });
 });
 ```
-Middleware is also available for `send`, `subscribe`, `unsubscribe` and `disconnect`.
+Middleware is also available for `send`, `subscribe`, `unsubscribe`, `disconnect`, `begin`, `commit`, `abort`,
+`ack` and `nack`; registering it for any other command throws a `TypeError`.
 
 To tell the client why a command was rejected, throw (or reject with) a `StompServer.StompError`; its message
 is sent in the ERROR frame. Other errors are reported to the client as `Internal error` and emitted as `error`
