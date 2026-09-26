@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "sockjs": "^0.3.19",
-    "ws": "^5.2.4"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
