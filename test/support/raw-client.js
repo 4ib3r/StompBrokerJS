@@ -140,10 +140,43 @@ RawClient.prototype.collect = function (ms) {
   });
 };
 
-/** Send SUBSCRIBE and give the broker a moment to register it */
+var receiptCounter = 0;
+
+/**
+ * Send a frame with a unique receipt header and resolve once the broker has
+ * answered it with RECEIPT (or rejected it with ERROR).
+ */
+RawClient.prototype.sendWithReceipt = function (command, headers, body) {
+  var receipt = 'rcpt-' + (++receiptCounter);
+  this.send(command, Object.assign({}, headers, {receipt: receipt}), body);
+  return this.waitFor(function (f) {
+    return (f.command === 'RECEIPT' || f.command === 'ERROR') && f.headers['receipt-id'] === receipt;
+  }, 1000, 'RECEIPT ' + receipt);
+};
+
+/** Send SUBSCRIBE and wait until the broker has registered it */
 RawClient.prototype.subscribe = function (destination, id, headers) {
-  this.send('SUBSCRIBE', Object.assign({destination: destination, id: id}, headers));
-  return delay(50);
+  return this.sendWithReceipt('SUBSCRIBE', Object.assign({destination: destination, id: id}, headers))
+    .then(function (reply) {
+      if (reply.command === 'ERROR') {
+        throw new Error('SUBSCRIBE ' + destination + ' rejected: ' + reply.headers.message);
+      }
+      return reply;
+    });
+};
+
+/** Destination used by flush(), no test subscribes to it */
+var FLUSH_DESTINATION = '/__flush__';
+
+/**
+ * Round-trip a frame through the broker on this connection. The broker
+ * handles frames of one connection in order and writes to a socket in order,
+ * so once this resolves every frame the broker sent to this client before
+ * (e.g. MESSAGEs from a synchronous server-side send()) has been received.
+ * Use it instead of waiting a fixed time before asserting that nothing arrived.
+ */
+RawClient.prototype.flush = function () {
+  return this.sendWithReceipt('SEND', {destination: FLUSH_DESTINATION}, '');
 };
 
 /** All MESSAGE frames received so far */

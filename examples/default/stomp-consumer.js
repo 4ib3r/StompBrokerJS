@@ -9,7 +9,7 @@ var headers = {
 client.debug = console.log;
 client.connect(headers, function (error) {
   // display the error's message header:
-  if (error.command == "ERROR") {
+  if (error.command === "ERROR") {
     console.error(error.headers.message);
   } else {
     console.log("Connected");

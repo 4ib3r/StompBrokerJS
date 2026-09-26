@@ -163,7 +163,6 @@ describe('Reported issues', function () {
 
     it('delivers messages when Array.prototype is extended', function () {
       var client;
-      // eslint-disable-next-line no-extend-native
       Array.prototype.indexOfKey = function () {};
       return ctx.start().then(function () {
         client = ctx.client();
@@ -443,7 +442,7 @@ describe('Review findings', function () {
         return client.subscribe(subscription, 's1');
       }).then(function () {
         ctx.broker.send(destination, {}, 'x');
-        return client.collect(100);
+        return client.flush();
       }).then(function () {
         return client.messages().length > 0;
       });
