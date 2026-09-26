@@ -244,6 +244,11 @@ var StompServer = function (config) {
     if (socket.stompClosed) {
       return false;
     }
+    if (typeof this.conf.authenticate === 'function' &&
+        !this.conf.authenticate(args.headers.login, args.headers.passcode, args.headers)) {
+      this.conf.debug('CONNECT rejected: authentication failed', socket.sessionId);
+      return false;
+    }
     socket.clientHeartbeat = {
       client: args.heartbeat[0],
       server: args.heartbeat[1]
