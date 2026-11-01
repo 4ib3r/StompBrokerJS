@@ -4,7 +4,6 @@
     "module": "commonjs",
     "strict": true,
     "noEmit": true,
-    "esModuleInterop": false,
     "types": ["node"]
   },
   "files": ["usage.ts"]
