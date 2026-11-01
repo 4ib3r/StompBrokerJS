@@ -42,8 +42,15 @@
     "provenance": true
   },
   "dependencies": {
-    "sockjs": "^0.3.19",
     "ws": "^8.21.3"
+  },
+  "peerDependencies": {
+    "sockjs": "^0.3.24"
+  },
+  "peerDependenciesMeta": {
+    "sockjs": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -55,6 +62,7 @@
     "globals": "^17.12.0",
     "jsdoc": "^4.0.5",
     "mocha": "^12.0.2",
+    "sockjs": "^0.3.24",
     "typescript": "^7.0.2"
   }
 }

@@ -13,6 +13,69 @@ const stompServer = new StompServer({
 });
 new StompServer({ protocol: 'sockjs', server: server });
 new StompServer({ protocolConfig: { noServer: true } });
+new StompServer({ server: server, transport: 'sockjs', protocolConfig: { sockjs_url: '/js/sockjs.min.js' } });
+
+// security hooks
+interface User { name: string; roles: string[] }
+const secured = new StompServer({
+  server: server,
+  allowWildcardSubscriptions: false,
+  authenticate: async function (credentials): Promise<User | null> {
+    const login: string | undefined = credentials.login;
+    const passcode: string | undefined = credentials.passcode;
+    const sessionId: string = credentials.sessionId;
+    const url: string | undefined = credentials.request && credentials.request.url;
+    void sessionId; void url; void credentials.headers['x-token'];
+    return login && passcode === 'secret' ? { name: login, roles: [] } : null;
+  },
+  authorize: function (principal: User, action, destination, session) {
+    const a: StompServer.AuthorizeAction = action;
+    void a; void session.sessionId;
+    return action === 'subscribe' ? destination.startsWith('/public') : principal.roles.indexOf('writer') >= 0;
+  }
+});
+secured.on('connected', function (sessionId, headers, principal: User) {
+  void sessionId; void headers; void principal.name;
+});
+secured.addMiddleware('subscribe', function (socket, args, next) {
+  const user = socket.principal as User;
+  void user; void args;
+  // @ts-expect-error the principal is read-only
+  socket.principal = null;
+  return next();
+});
+new StompServer({ server: server, authorize: async () => true });
+// @ts-expect-error authorize returns a boolean
+new StompServer({ server: server, authorize: () => 'yes' });
+// @ts-expect-error allowWildcardSubscriptions is a boolean
+new StompServer({ server: server, allowWildcardSubscriptions: 'no' });
+
+// transports
+const memory = new StompServer.MemoryTransport();
+const memoryServer = new StompServer({ transport: memory });
+const clientEnd: StompServer.MemoryConnection = memory.connect();
+clientEnd.onMessage(function (data, isBinary) { void data; void isBinary; });
+clientEnd.send('CONNECT\naccept-version:1.1\n\n\0');
+clientEnd.peer.bufferedAmount = 1024;
+const closing: Promise<void> = memoryServer.close();
+void closing;
+const custom: StompServer.Transport = {
+  onConnection(cb) {
+    const conn: StompServer.Connection = {
+      bufferedAmount: 0,
+      send(data) { void data; },
+      close(code, reason) { void code; void reason; },
+      onMessage(onData) { onData(Buffer.from(''), false); },
+      onClose(onClosed) { void onClosed; },
+      onError(onErr) { void onErr; }
+    };
+    cb(conn);
+  },
+  close() { return Promise.resolve(); }
+};
+new StompServer({ transport: custom });
+// @ts-expect-error a transport needs close()
+new StompServer({ transport: { onConnection() {} } });
 
 // @ts-expect-error unknown protocol
 new StompServer({ server: server, protocol: 'tcp' });
@@ -116,6 +179,14 @@ const isError: boolean = err instanceof Error;
 void isError;
 
 // noServer upgrades
+server.on('upgrade', function (request, socket, head) {
+  stompServer.handleUpgrade(request, socket, head);
+});
+stompServer.addMiddleware('connect', function (socket, args, next) {
+  const url: string | undefined = socket.request && socket.request.url;
+  void url;
+  return next();
+});
 server.on('upgrade', function (request, socket, head) {
   const transport = stompServer.socket;
   if (transport.handleUpgrade) {

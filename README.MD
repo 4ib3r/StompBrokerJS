@@ -12,14 +12,20 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 * STOMP 1.0 and 1.1 (version negotiation, header escaping, heart-beats in both directions)
 * Transactions (BEGIN / COMMIT / ABORT)
 * ACK / NACK (at-most-once delivery, see "Delivery guarantees")
-* WebSocket (`ws`) and SockJS transports
+* WebSocket (`ws`) and SockJS transports, custom transports, an in-memory transport for tests
+* Graceful shutdown with `server.close()`
+* `authenticate` / `authorize` hooks, optional ban on wildcard subscriptions
 
 # TODO
-* Authorization
-* Redelivery of unacknowledged messages
-* Async send messages
+* Authorization: a one-time warning when a server has neither `authenticate` / `authorize` nor `connect`
+  middleware (planned); `ctx.principal` with the 2.0 middleware API (planned for 2.0.0)
+* Async send messages: `publish()` returning a Promise (planned for 2.0.0)
+* `transport` / `transportOptions` replacing `protocol` / `protocolConfig` (planned for 2.0.0)
+* STOMP 1.2 (planned for 2.0.0)
 * Composite Destinations
 * Message selectors
+
+Not planned: redelivery of unacknowledged messages, the broker delivers at-most-once (see "Delivery guarantees").
 
 # Changelog
 * 0.1.0 First working version.
@@ -48,6 +54,14 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
         * Middleware and the `subscribe` / `unsubscribe` events (`subscription.socket`) get a session object
           (`sessionId`, `version`, `state`, `close()`) instead of the raw WebSocket; `subscribes` is a read-only
           snapshot; the internal `heartbeatOn` / `heartbeatOff` methods are gone.
+        * `sockjs` is an optional peer dependency: install it (`npm install sockjs`) to use `protocol: 'sockjs'`;
+          creating a SockJS server without it throws an error saying so.
+        * SockJS: `protocolConfig.sockjs_url` and `protocolConfig.prefix` are no longer overwritten (the broker
+          forced an unpinned CDN `sockjs_url`); without `sockjs_url` SockJS uses its own default, `prefix`
+          defaults to `path`.
+        * `StompServer#socket` is the SockJS server itself for `protocol: 'sockjs'` (was an internal adapter with
+          `on('connection')`); the internal `lib/adapter` module is replaced by `lib/transport`. `socket` is
+          deprecated, use `handleUpgrade()` for `noServer`.
     * Malformed frames (e.g. missing destination) are answered with ERROR instead of crashing the process;
       socket errors are emitted only when an `error` listener is registered.
     * Frames are decoded incrementally: a WebSocket message may contain several frames and a frame may span
@@ -86,6 +100,18 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
     * Bodies containing blank lines or NULL octets (with `content-length`) are parsed correctly.
     * Fixed wildcard matching (`/a.b.c` no longer receives messages for `/a.b`).
     * Rejected CONNECT closes the connection; middleware may return a Promise.
+    * `server.close()` shuts the broker down: ERROR `server shutting down` to every open connection, which is
+      then closed, timers stopped, transport closed (an http server passed in is left open); see "Shutdown".
+    * Transports implement a small `Transport` / `Connection` interface; a custom transport object can be
+      passed as `transport`, `StompServer.MemoryTransport` connects clients in-process without sockets (tests);
+      see "Transports".
+    * `server.handleUpgrade(request, socket, head)` for `protocolConfig.noServer`.
+    * Security hooks: `authenticate` (CONNECT credentials → principal, stored as `session.principal` and passed
+      to the `connected` event), `authorize` (client SUBSCRIBE and SEND, ERROR `Access denied`) and
+      `allowWildcardSubscriptions: false`; see "Authentication and authorization".
+    * Frames sent right after a CONNECT that is still being processed (asynchronous `authenticate` or `connect`
+      middleware) are processed once the client is connected, instead of being rejected with `Not connected`. At most `limits.maxPendingFrames` frames are accepted this way.
+    * `sockjs` is loaded only when the SockJS transport is used.
     * TypeScript type definitions (`stompServer.d.ts`).
     * `protocolConfig.noServer` is supported for the `ws` protocol.
     * Errors are thrown as `Error` instances.
@@ -132,8 +158,9 @@ The package is CommonJS: use `import StompServer = require(...)`, or a default i
 new StompServer({
   server: server,                // http.Server, required unless protocolConfig.noServer is set
   path: '/stomp',                // WebSocket path (SockJS prefix)
-  protocol: 'ws',                // 'ws' or 'sockjs'
+  protocol: 'ws',                // 'ws' or 'sockjs', see "Transports"
   protocolConfig: {},            // extra options for the ws / sockjs server
+  transport: undefined,          // a custom Transport object instead of protocol, see "Transports"
   heartbeat: [0, 0],             // [server sends every ms, server expects every ms], 0 disables
   heartbeatErrorMargin: 1000,    // tolerance for late client heart-beats
   serverName: 'STOMP-JS/x.y.z',
@@ -154,7 +181,8 @@ limits: {
   maxBufferedAmount: 8388608,    // bytes queued for a connection before it counts as a slow consumer
   connectTimeout: 10000,         // ms from opening the socket to the CONNECT frame
   maxTransactions: 16,           // open transactions per connection
-  maxTransactionBytes: 4194304   // body bytes buffered in the open transactions of a connection
+  maxTransactionBytes: 4194304,  // body bytes buffered in the open transactions of a connection
+  maxPendingFrames: 32           // frames accepted while a CONNECT is still being processed (async authenticate)
 }
 ```
 A client that breaks a limit gets an ERROR frame and the connection is closed. Messages for a slow consumer
@@ -162,15 +190,51 @@ are dropped (`slowConsumerPolicy: 'drop'`, the `slowConsumer` event is emitted) 
 (`'close'`); SockJS connections don't report queued data, so this applies to `ws` connections only.
 Options in `protocolConfig` (e.g. `maxPayload`, `perMessageDeflate`) take precedence over these defaults.
 
+## Transports
+* `protocol: 'ws'` (default): WebSocket server of the [`ws`](https://github.com/websockets/ws) package on
+  `server` at `path`; `protocolConfig` is passed to its `WebSocketServer` (e.g. `perMessageDeflate`,
+  `maxPayload`, `verifyClient`).
+* `protocol: 'sockjs'`: [SockJS](https://github.com/sockjs/sockjs-node) server with the prefix `path`.
+  `sockjs` is an optional peer dependency, install it yourself: `npm install sockjs`. `protocolConfig` is
+  passed to `sockjs.createServer`; set `sockjs_url` to a pinned or self-hosted copy of sockjs-client (used by
+  the iframe-based fallbacks), otherwise SockJS's own default is used. SockJS has text messages only and
+  doesn't report queued data (no slow-consumer detection).
+* `transport: object`: any object with `onConnection(cb)` and `close()` (returning a Promise); `cb` is called
+  with a connection (`send(data)`, `close(code, reason)`, `bufferedAmount`, `onMessage(cb(data, isBinary))`,
+  `onClose(cb)`, `onError(cb)`, optionally `readyState`, 1 meaning open) and the http request, if there is one.
+  No `server` is needed. `transport: 'ws'` and `transport: 'sockjs'` work as `protocol`.
+
+### In-memory transport (tests)
+```javascript
+var memory = new StompServer.MemoryTransport();
+var stompServer = new StompServer({transport: memory});
+var client = memory.connect();            // client end of a new connection, no sockets involved
+client.onMessage(function (data, isBinary) { console.log(data.toString()); });
+client.send('CONNECT\naccept-version:1.1\n\n\0');
+```
+Data is delivered asynchronously, in order; a string is a text message, a Buffer a binary message.
+
 ### Sharing an http server (`noServer`)
 ```javascript
 var stompServer = new StompServer({protocolConfig: {noServer: true}});
 server.on('upgrade', function (request, socket, head) {
   if (request.url === '/stomp') {
-    stompServer.socket.handleUpgrade(request, socket, head, function (ws) {
-      stompServer.socket.emit('connection', ws, request);
-    });
+    stompServer.handleUpgrade(request, socket, head);
   }
+});
+```
+
+### Shutdown
+`stompServer.close()` returns a Promise: every open connection gets an ERROR frame with the message
+`server shutting down` and is closed (`disconnected` is emitted for each), heart-beat and CONNECT timers are
+stopped and the transport stops accepting connections. It resolves once the connections are closed; ws
+connections that don't complete the close handshake within 2 s are dropped. An http server passed as
+`server` is not closed, close it yourself afterwards. Calling `close()` again returns the same Promise.
+```javascript
+process.on('SIGTERM', function () {
+  stompServer.close().then(function () {
+    server.close();
+  });
 });
 ```
 
@@ -193,7 +257,49 @@ which drops them; the transaction is started with BEGIN. `send` middleware runs 
 COMMIT delivers everything that was accepted. Open transactions of a closed connection are dropped.
 ACK and NACK may name an open transaction as well.
 
-## Validating clients on connect
+## Authentication and authorization
+```javascript
+var stompServer = new StompServer({
+  server: server,
+  // CONNECT / STOMP: return the principal (any truthy value) or a Promise of it
+  authenticate: function (credentials) {   // {login, passcode, headers, sessionId, request}
+    return users.check(credentials.login, credentials.passcode).then(function (user) {
+      return user || null;                 // falsy: ERROR "Authentication failed", connection closed
+    });
+  },
+  // client SUBSCRIBE and SEND: true allows, anything else is answered with ERROR "Access denied"
+  authorize: function (principal, action, destination, session) {   // action: 'subscribe' or 'send'
+    if (action === 'subscribe') {
+      return destination.indexOf('/public.') === 0 || principal.isAdmin;
+    }
+    return Promise.resolve(principal.canPublish(destination));
+  },
+  allowWildcardSubscriptions: false        // clients may not subscribe to /** (default true)
+});
+```
+* `authenticate` runs for every CONNECT before `connect` middleware. A falsy result (`null`, `false`,
+  `undefined`) rejects the client with an ERROR frame (`Authentication failed`) and closes the connection; a
+  thrown (or rejected) `StompServer.StompError` sends its message instead, any other error is reported as
+  `Internal error` and emitted as an `error` event. The passcode never reaches `debug` or ERROR frames.
+  `request` is the http request of the WebSocket upgrade (ws transport only, e.g. for cookies).
+* The principal is available, read-only, as `socket.principal` in middleware (and `subscription.socket.principal`
+  in `subscribe` events) and is the third argument of the `connected` event. Without `authenticate` it is
+  `undefined`.
+* `authorize` runs for client SUBSCRIBE and SEND frames before their middleware; a SEND in a transaction is
+  checked when it arrives, not on COMMIT. Only `true` (or a Promise of `true`) allows the command; anything
+  else sends ERROR `Access denied` and closes the connection. Errors are handled as for `authenticate`.
+* `allowWildcardSubscriptions: false` rejects client SUBSCRIBE destinations containing a `*` or `**` name
+  (`Wildcard subscriptions are not allowed`); without it any client can subscribe to `/**` and read every
+  message. It is checked before `authorize`.
+* Server-side `stompServer.send()` and `stompServer.subscribe()` are trusted: they are neither authorized nor
+  restricted by `allowWildcardSubscriptions`.
+* Hooks may be asynchronous; frames of a connection are still processed one after another in the order they
+  were received, frames sent while `authenticate` is pending wait for it.
+
+Without these options every client may connect, subscribe to anything (including `/**`) and send to any
+destination.
+
+## Middleware
 Middleware receives `(socket, args, next)`; return `next()` to continue or a falsy value to reject.
 A rejected command is answered with an ERROR frame and the connection is closed. Middleware may return a Promise.
 ```javascript
@@ -211,7 +317,7 @@ is sent in the ERROR frame. Other errors are reported to the client as `Internal
 events, so that internal details don't leak.
 ```javascript
 stompServer.addMiddleware('subscribe', function (socket, args, next) {
-  if (!mayRead(socket.sessionId, args.dest)) {
+  if (!mayRead(socket.principal, args.dest)) {
     throw new StompServer.StompError('Access denied');
   }
   return next();
@@ -220,7 +326,7 @@ stompServer.addMiddleware('subscribe', function (socket, args, next) {
 
 ## Events
 * `connecting` (sessionId) — socket opened
-* `connected` (sessionId, headers) — CONNECT accepted
+* `connected` (sessionId, headers, principal) — CONNECT accepted, `principal` from `authenticate`
 * `subscribe` (subscription) — a client (or the server) subscribed, emitted without any message being sent
 * `unsubscribe` (subscription)
 * `send` ({dest, frame}) — message published

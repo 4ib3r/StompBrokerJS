@@ -37,6 +37,24 @@ below, SockJS as optional peer dependency (lazy `require`, configurable
 `sockjs_url`), `server.close()`, `handleUpgrade` for `noServer`, in-memory
 transport for tests.
 
+Done. Decisions:
+
+- `lib/transport/{ws,sockjs,memory}.js` replace `lib/adapter`. A custom
+  Transport object is passed as the new `transport` option (which also
+  accepts `'ws'` / `'sockjs'`); `protocol` / `protocolConfig` stay, the
+  rename to `transport` / `transportOptions` with deprecation warnings is
+  left to 5c. `conf.protocol` is `'custom'` for a Transport object.
+- `Connection.readyState` is optional (1 = open); a session also counts as
+  closed once the server closed it, for transports without one.
+- `StompServer#socket` stays (deprecated) as the ws / SockJS server, so the
+  documented `noServer` recipe keeps working; `handleUpgrade()` replaces it.
+- `close()` resolves once the connections are closed; ws connections that
+  don't finish the close handshake within 2 s are terminated (unref'd timer).
+  SockJS handlers can't be removed from the http server, connections arriving
+  after `close()` are closed right away.
+- `StompServer.MemoryTransport` is public (useful for users' own tests);
+  the broker test harness closes every broker in `afterEach`.
+
 ### 5c Public 2.0 API
 
 `class StompServer`, private internals, `publish()` promise,
@@ -48,6 +66,27 @@ transport for tests.
 
 `authenticate` / `authorize` / `allowWildcardSubscriptions`, `index.d.ts`
 checked in CI, jsdoc from the new API, README rewrite.
+
+Hooks done on the current (1.x-style) API, before 5c. Decisions:
+
+- `authenticate({login, passcode, headers, sessionId, request})` runs before
+  `connect` middleware; a falsy result rejects (ERROR `Authentication
+  failed`), a `StompError` sends its message, other errors `Internal error`
+  + `error` event. The principal is `session.principal` (read-only getter)
+  and the third argument of `connected`; a repeated CONNECT doesn't
+  re-authenticate.
+- `authorize(principal, action, destination, session)` runs before the
+  `subscribe` / `send` middleware; only `true` allows (a truthy non-boolean
+  denies). Transactional SEND is checked on arrival, COMMIT is not checked
+  again. Server-side `send()` / `subscribe()` are trusted.
+- `allowWildcardSubscriptions` (default `true`) is checked before
+  `authorize`; only names exactly `*` / `**` count as wildcards.
+- Frames pipelined behind a pending (async) CONNECT are queued and checked
+  when their turn comes instead of being rejected with `Not connected`.
+- Open: the one-time warning for servers without hooks or `connect`
+  middleware (no good channel before 5c's `emitWarning` decision; `debug`
+  is silent by default); `ctx.principal` / `SessionInfo.principal`,
+  `index.d.ts`, jsdoc from the new API and the README rewrite come with 5c.
 
 ## Goal
 
@@ -169,16 +208,16 @@ new StompServer({
 
 ## Tasks
 
-- [ ] in-memory transport + `test/compat.test.js`
+- [ ] in-memory transport + `test/compat.test.js` (in-memory transport done in 5b; compat suite open)
 - [ ] `Session`, `SessionState`
 - [ ] `SubscriptionRegistry` (+ property test against the old linear matcher)
 - [ ] `HeartbeatManager`
 - [ ] `MiddlewareChain` + `legacyMiddleware` shim
 - [ ] `Router` (serialize once, slow-consumer policy)
-- [ ] `transport/ws.js` on ws 8, `transport/sockjs.js` lazy + peer dep
+- [x] `transport/ws.js` on ws 8, `transport/sockjs.js` lazy + peer dep
 - [ ] `class StompServer`: private fields, `publish`, `Subscription`,
-      `close()`, events with `SessionInfo`
-- [ ] `authenticate` / `authorize` / `allowWildcardSubscriptions`
+      `close()` (done in 5b), events with `SessionInfo`
+- [x] `authenticate` / `authorize` / `allowWildcardSubscriptions`
 - [ ] `index.js`, `index.d.ts`, `tsc --noEmit` job in CI checking the
       examples against the types
 - [ ] remove dead code, fix JSDoc
