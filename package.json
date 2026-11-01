@@ -1,6 +1,6 @@
 {
   "name": "stomp-broker-js",
-  "version": "1.3.1",
+  "version": "2.0.0-rc.0",
   "description": "Simple STOMP 1.1 Broker for nodejs http applications.",
   "main": "stompServer.js",
   "types": "stompServer.d.ts",
@@ -36,6 +36,10 @@
   "homepage": "https://4ib3r.github.io/StompBrokerJS",
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "sockjs": "^0.3.19",
