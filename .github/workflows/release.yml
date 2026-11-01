@@ -133,4 +133,4 @@ jobs:
         env:
           TARBALL: ${{ needs.build.outputs.tarball }}
           DIST_TAG: ${{ needs.build.outputs.dist-tag }}
-        run: npm publish "dist/${TARBALL}" --access public --tag "${DIST_TAG}" --ignore-scripts
+        run: npm publish "./dist/${TARBALL}" --access public --tag "${DIST_TAG}" --ignore-scripts
