@@ -110,7 +110,7 @@ Not planned: redelivery of unacknowledged messages, the broker delivers at-most-
       to the `connected` event), `authorize` (client SUBSCRIBE and SEND, ERROR `Access denied`) and
       `allowWildcardSubscriptions: false`; see "Authentication and authorization".
     * Frames sent right after a CONNECT that is still being processed (asynchronous `authenticate` or `connect`
-      middleware) are processed once the client is connected, instead of being rejected with `Not connected`.
+      middleware) are processed once the client is connected, instead of being rejected with `Not connected`. At most `limits.maxPendingFrames` frames are accepted this way.
     * `sockjs` is loaded only when the SockJS transport is used.
     * TypeScript type definitions (`stompServer.d.ts`).
     * `protocolConfig.noServer` is supported for the `ws` protocol.
@@ -181,7 +181,8 @@ limits: {
   maxBufferedAmount: 8388608,    // bytes queued for a connection before it counts as a slow consumer
   connectTimeout: 10000,         // ms from opening the socket to the CONNECT frame
   maxTransactions: 16,           // open transactions per connection
-  maxTransactionBytes: 4194304   // body bytes buffered in the open transactions of a connection
+  maxTransactionBytes: 4194304,  // body bytes buffered in the open transactions of a connection
+  maxPendingFrames: 32           // frames accepted while a CONNECT is still being processed (async authenticate)
 }
 ```
 A client that breaks a limit gets an ERROR frame and the connection is closed. Messages for a slow consumer

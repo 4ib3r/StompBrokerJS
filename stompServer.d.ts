@@ -206,6 +206,8 @@ declare namespace StompServer {
     maxTransactions: number;
     /** Body bytes buffered in the open transactions of a connection. Default 4194304 */
     maxTransactionBytes: number;
+    /** Frames accepted while a CONNECT is still being processed. Default 32 */
+    maxPendingFrames: number;
   }
 
   interface ServerConfig {

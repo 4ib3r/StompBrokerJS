@@ -101,6 +101,79 @@ describe('Security hooks', function () {
     });
   });
 
+  it('does not process a SEND queued behind a rejected CONNECT', function () {
+    var auth = deferred();
+    var received = [];
+    var client;
+    return ctx.startMemory({
+      authenticate: function () {
+        return auth.promise;
+      }
+    }).then(function (broker) {
+      broker.subscribe('/**', function (body) {
+        received.push(body);
+      });
+      client = ctx.client();
+      client.send('CONNECT', {'accept-version': '1.1'});
+      client.send('SEND', {destination: '/a'}, 'secret');
+      return nextTick();
+    }).then(function () {
+      auth.resolve(false);
+      return expectError(client, 'Authentication failed');
+    }).then(function () {
+      assert.deepEqual(commands(client), ['ERROR']);
+      assert.deepEqual(received, []);
+    });
+  });
+
+  it('closes the connection that queues more than maxPendingFrames behind a pending CONNECT', function () {
+    var auth = deferred();
+    var client;
+    return ctx.startMemory({
+      limits: {maxPendingFrames: 2},
+      authenticate: function () {
+        return auth.promise;
+      }
+    }).then(function () {
+      client = ctx.client();
+      client.send('CONNECT', {'accept-version': '1.1'});
+      client.send('SEND', {destination: '/a'}, '1');
+      client.send('SEND', {destination: '/a'}, '2');
+      client.send('SEND', {destination: '/a'}, '3');
+      return expectError(client, 'More than 2 frames received before CONNECT completed');
+    }).then(function () {
+      auth.resolve('late');
+    });
+  });
+
+  it('processes up to maxPendingFrames frames queued behind a pending CONNECT', function () {
+    var auth = deferred();
+    var received = [];
+    var client;
+    return ctx.startMemory({
+      limits: {maxPendingFrames: 2},
+      authenticate: function () {
+        return auth.promise;
+      }
+    }).then(function (broker) {
+      broker.subscribe('/**', function (body) {
+        received.push(body);
+      });
+      client = ctx.client();
+      client.send('CONNECT', {'accept-version': '1.1'});
+      client.send('SEND', {destination: '/a'}, '1');
+      client.send('SEND', {destination: '/a'}, '2');
+      return nextTick();
+    }).then(function () {
+      auth.resolve('ok');
+      return client.waitForCommand('CONNECTED');
+    }).then(function () {
+      return nextTick();
+    }).then(function () {
+      assert.deepEqual(received, ['1', '2']);
+    });
+  });
+
   function commands(client) {
     return client.frames.map(function (f) {
       return f.command;
