@@ -15,11 +15,14 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 * WebSocket (`ws`) and SockJS transports
 
 # TODO
-* Authorization
-* Redelivery of unacknowledged messages
-* Async send messages
+* Authorization: built-in `authenticate` / `authorize` hooks (planned for 2.0.0); until then use `connect`,
+  `subscribe` and `send` middleware, see "Validating clients on connect"
+* Async send messages: `publish()` returning a Promise (planned for 2.0.0)
+* STOMP 1.2 (planned for 2.0.0)
 * Composite Destinations
 * Message selectors
+
+Not planned: redelivery of unacknowledged messages, the broker delivers at-most-once (see "Delivery guarantees").
 
 # Changelog
 * 0.1.0 First working version.

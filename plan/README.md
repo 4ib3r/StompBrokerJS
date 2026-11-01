@@ -10,11 +10,11 @@ builds on the previous one and must leave CI green.
 | 2 | [Streaming, binary-safe parser](02-parser.md) | 2.0.0 | M | done (#39) |
 | 3 | [Limits and session lifecycle](03-limits-lifecycle.md) | 2.0.0 | M | done (#40) |
 | 4 | [Transactions, ACK/NACK](04-transactions-ack.md) | 2.0.0 | S–M | done (#41) |
-| 5a | [Internal extraction: Session, subscription trie](05-architecture-2.0.md#5a-internal-extraction) | 2.0.0 | M | in review |
-| 5b | [Transports: ws 8, interface, optional SockJS, `close()`](05-architecture-2.0.md#5b-transports) | 2.0.0 | M | planned |
+| 5a | [Internal extraction: Session, subscription trie](05-architecture-2.0.md#5a-internal-extraction) | 2.0.0 | M | done (2.0.0-rc.0) |
+| 5b | [Transports: ws 8, interface, optional SockJS, `close()`](05-architecture-2.0.md#5b-transports) | 2.0.0 | M | partial: ws 8 done; optional SockJS, `Transport` interface, `close()`, in-memory transport open |
 | 5c | [Public 2.0 API](05-architecture-2.0.md#5c-public-20-api) | 2.0.0 | L | planned |
 | 5d | [Security hooks, types, docs](05-architecture-2.0.md#5d-security-hooks-types-docs) | 2.0.0 | M | planned |
-| 6 | STOMP 1.2 support, B1 fix, 1.1 follow-ups ([1.1 check](stomp-1.1-compliance.md), [1.2 check](stomp-1.2-compliance.md#proposed-step-6-stomp-12)) | 2.0.0 | M | planned |
+| 6 | STOMP 1.2 support, B1 fix, 1.1 follow-ups ([1.1 check](stomp-1.1-compliance.md), [1.2 check](stomp-1.2-compliance.md#proposed-step-6-stomp-12)) | 2.0.0 | M | partial: B1 and G5 done (2.0.0-rc.0); G1–G4, D3 open |
 
 **Release decision:** there are no 1.x releases in between; everything above
 ships in **2.0.0**. Behaviour changes from steps 2–4 don't need to be held
@@ -26,6 +26,8 @@ README changelog.
 - **Release:** everything ships in 2.0.0 (see above).
 - **ACK/NACK:** documented no-ops for an at-most-once broker; redelivery of
   unacknowledged messages is not planned (step 4).
+- **Not planned yet:** composite destinations and message selectors (README
+  TODO) have no step; they come after 2.0.0.
 
 ## Open decisions
 
@@ -66,6 +68,6 @@ Where each review finding is addressed:
 | Inconsistent middleware / error strategy, leaky public API | 5 |
 | sockjs eager require, forced options, no `close()` | 5 |
 | ws 5 end-of-life, sockjs `uuid` advisory | 5 |
-| Frames received before DISCONNECT dropped when async middleware finishes late (spec: SHOULD still be processed) | 6 (B1) |
+| Frames received before DISCONNECT dropped when async middleware finishes late (spec: SHOULD still be processed) | 6 (B1, done) |
 | STOMP 1.2 not negotiated: CR escaping, MESSAGE `ack` header, ACK/NACK `id` | 6 |
 | No auth/authorization defaults, `/**` eavesdropping | 5 |
