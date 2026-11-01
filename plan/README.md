@@ -11,7 +11,7 @@ builds on the previous one and must leave CI green.
 | 3 | [Limits and session lifecycle](03-limits-lifecycle.md) | 2.0.0 | M | done (#40) |
 | 4 | [Transactions, ACK/NACK](04-transactions-ack.md) | 2.0.0 | S–M | done (#41) |
 | 5a | [Internal extraction: Session, subscription trie](05-architecture-2.0.md#5a-internal-extraction) | 2.0.0 | M | done (2.0.0-rc.0) |
-| 5b | [Transports: ws 8, interface, optional SockJS, `close()`](05-architecture-2.0.md#5b-transports) | 2.0.0 | M | partial: ws 8 done; optional SockJS, `Transport` interface, `close()`, in-memory transport open |
+| 5b | [Transports: ws 8, interface, optional SockJS, `close()`](05-architecture-2.0.md#5b-transports) | 2.0.0 | M | done |
 | 5c | [Public 2.0 API](05-architecture-2.0.md#5c-public-20-api) | 2.0.0 | L | planned |
 | 5d | [Security hooks, types, docs](05-architecture-2.0.md#5d-security-hooks-types-docs) | 2.0.0 | M | planned |
 | 6 | STOMP 1.2 support, B1 fix, 1.1 follow-ups ([1.1 check](stomp-1.1-compliance.md), [1.2 check](stomp-1.2-compliance.md#proposed-step-6-stomp-12)) | 2.0.0 | M | partial: B1 and G5 done (2.0.0-rc.0); G1–G4, D3 open |

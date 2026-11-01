@@ -10,7 +10,7 @@ var Transactions    = require('./lib/transactions');
 var Session         = require('./lib/session');
 var SubscriptionRegistry = require('./lib/subscription-registry');
 
-var protocolAdapter = require('./lib/adapter');
+var transports      = require('./lib/transport');
 var buildConfig     = require('./lib/config');
 
 /**
@@ -24,6 +24,10 @@ var buildConfig     = require('./lib/config');
  * @param {number} [heartbeatErrorMargin=1000] Heartbeat error margin; specify how strict server should be
  * @param {function} [debug=function(args) {}] Debug function
  * @param {object} [limits] Resource limits, see README "Limits"
+ * @param {('ws'|'sockjs')} [protocol=ws] Built-in transport
+ * @param {object} [protocolConfig] Options for the ws / sockjs server, they take precedence over broker defaults
+ * @param {('ws'|'sockjs'|Transport)} [transport] Built-in transport name, or a custom Transport object
+ *   (see README "Transports")
  * @param {('drop'|'close')} [slowConsumerPolicy=drop] What to do with messages for a client whose
  *   connection has more than limits.maxBufferedAmount bytes queued
  */
@@ -58,15 +62,33 @@ var StompServer = function (config) {
   this.frameHandler = new stomp.FrameHandler(this);
 
   var limits = this.conf.limits;
-  var transportDefaults = this.conf.protocol === 'ws' ? {
-    perMessageDeflate: false,
-    maxPayload: limits.maxFrameSize === Infinity ? undefined : limits.maxFrameSize
-  } : {};
-  // user options win over broker defaults
-  this.socket = new protocolAdapter[this.conf.protocol](Object.assign(transportDefaults, this.conf.protocolConfig, {
-    server: this.conf.server,
-    path: this.conf.path
-  }));
+
+  /**
+   * Built-in transport for `protocol`, on the configured http server and path
+   * @private
+   */
+  this._createTransport = function () {
+    var defaults = this.conf.protocol === 'ws' ? {
+      perMessageDeflate: false,
+      maxPayload: limits.maxFrameSize === Infinity ? undefined : limits.maxFrameSize
+    } : {};
+    // user options win over broker defaults
+    return transports.create(this.conf.protocol, Object.assign(defaults, this.conf.protocolConfig, {
+      server: this.conf.server,
+      path: this.conf.path
+    }));
+  };
+
+  /** the Transport connections come from */
+  this._transport = this.conf.transport || this._createTransport();
+  /**
+   * Transport server: the `ws` WebSocketServer or the SockJS server; the
+   * Transport object itself for a custom transport.
+   * @deprecated use handleUpgrade() for `noServer`
+   */
+  this.socket = this._transport.server || this._transport;
+  this._closing = undefined;
+
   /**
    * Client connecting event, emitted after socket is opened.
    *
@@ -74,8 +96,12 @@ var StompServer = function (config) {
    * @type {object}
    * @property {string} sessionId
    */
-  this.socket.on('connection', function (ws) {
-    var session = this._createSession(ws);
+  this._transport.onConnection(function (connection, request) {
+    if (this._closing !== undefined) {
+      connection.close(1001, 'server shutting down');
+      return;
+    }
+    var session = this._createSession(connection, request);
     this._sessions.set(session.sessionId, session);
     if (limits.connectTimeout !== Infinity) {
       session.connectTimer = setTimeout(function () {
@@ -89,11 +115,10 @@ var StompServer = function (config) {
     this.emit('connecting', session.sessionId);
     this.conf.debug('Connect', session.sessionId);
 
-    // ws 8 delivers text messages as Buffers too, with isBinary false
-    ws.on('message', function (data, isBinary) {
+    connection.onMessage(function (data, isBinary) {
       this.parseRequest(session, data, isBinary);
     }.bind(this));
-    ws.on('close', function () {
+    connection.onClose(function () {
       session.state = Session.STATE.CLOSED;
       this._sessions.delete(session.sessionId);
       // DISCONNECT frame may already have handled the graceful disconnect
@@ -104,7 +129,7 @@ var StompServer = function (config) {
       }
       this.afterConnectionClose(session);
     }.bind(this));
-    ws.on('error', function (err) {
+    connection.onError(function (err) {
       this.conf.debug(err);
       this._emitError(err);
     }.bind(this));
@@ -125,9 +150,10 @@ var StompServer = function (config) {
    * Session for a transport connection
    * @private
    */
-  this._createSession = function (connection) {
+  this._createSession = function (connection, request) {
     return new Session(connection, {
       id: stompUtils.genId(),
+      request: request,
       decoder: new FrameDecoder({
         maxFrameSize: limits.maxFrameSize,
         maxHeaders: limits.maxHeaders,
@@ -135,6 +161,53 @@ var StompServer = function (config) {
       }),
       transactions: new Transactions(limits.maxTransactions, limits.maxTransactionBytes)
     });
+  };
+
+  /**
+   * Shut the server down: every open connection gets an ERROR frame
+   * (`server shutting down`) and is closed, timers are stopped and the
+   * transport is closed. An http server passed in `server` is not closed.
+   * Calling it again returns the same Promise.
+   *
+   * @return {Promise<void>} resolves when the transport and its connections are closed
+   */
+  this.close = function () {
+    if (this._closing !== undefined) {
+      return this._closing;
+    }
+    this.conf.debug('Server shutting down');
+    var self = this;
+    var sessions = Array.from(this._sessions.values());
+    sessions.forEach(function (session) {
+      session.cleanup();
+      try {
+        if (session.isOpen()) {
+          stomp.ServerFrame.ERROR(session, 'server shutting down', 'The server is shutting down');
+        }
+        session.close(1001, 'server shutting down');
+      } catch (err) {
+        self.conf.debug('Closing session failed', session.sessionId, err);
+      }
+    });
+    this._closing = Promise.resolve().then(function () {
+      return self._transport.close();
+    }).then(function () {});
+    return this._closing;
+  };
+
+  /**
+   * Accept an http upgrade request on the WebSocket transport, for a server
+   * created with `protocolConfig.noServer` (a shared http server).
+   *
+   * @param {http.IncomingMessage} request
+   * @param {stream.Duplex} socket
+   * @param {Buffer} head
+   */
+  this.handleUpgrade = function (request, socket, head) {
+    if (typeof this._transport.handleUpgrade !== 'function') {
+      throw new Error('handleUpgrade is supported by the ws transport only');
+    }
+    this._transport.handleUpgrade(request, socket, head);
   };
 
   /**
@@ -818,6 +891,9 @@ util.inherits(StompServer, EventEmitter);
 
 /** Error whose message is sent to the client, e.g. thrown by middleware to reject a command */
 StompServer.StompError = StompError;
+
+/** In-process transport without sockets (tests), see README "Transports" */
+StompServer.MemoryTransport = transports.MemoryTransport;
 
 // Export
 module.exports = StompServer;

@@ -37,26 +37,53 @@ function parseFrame(raw) {
 }
 
 /**
- * Minimal STOMP client on top of `ws` that records every received frame.
+ * Minimal STOMP client that records every received frame: over `ws` to
+ * `port`, or over an in-memory transport (`StompServer.MemoryTransport`)
+ * when `port` is one.
  */
 function RawClient(port, path) {
   var self = this;
   this.frames = [];
   this.waiters = [];
   this.closed = false;
-  this.ws = new WebSocket('ws://localhost:' + port + (path || '/stomp'));
-  this.ws.on('message', function (data, isBinary) {
+  this.closeCode = undefined;
+
+  function onMessage(data, isBinary) {
     // ws 8 delivers text messages as Buffers too
     var frame = parseFrame(isBinary ? data : data.toString('utf8'));
     self.frames.push(frame);
     self._notify();
-  });
-  this.ws.on('close', function () {
+  }
+  function onClose(code) {
     self.closed = true;
+    self.closeCode = code;
     self._notify();
-  });
+  }
+
+  if (port instanceof StompServer.MemoryTransport) {
+    this.ws = null;
+    this.memory = port.connect();
+    this.memory.onMessage(onMessage);
+    this.memory.onClose(function () {
+      onClose(self.memory.closeCode);
+    });
+    return;
+  }
+  this.memory = null;
+  this.ws = new WebSocket('ws://localhost:' + port + (path || '/stomp'));
+  this.ws.on('message', onMessage);
+  this.ws.on('close', onClose);
   this.ws.on('error', function () {});
 }
+
+/** Send data over the transport of the client */
+RawClient.prototype._write = function (data) {
+  if (this.memory) {
+    this.memory.send(data);
+  } else {
+    this.ws.send(data);
+  }
+};
 
 RawClient.prototype._notify = function () {
   this.waiters.slice().forEach(function (waiter) {
@@ -65,6 +92,9 @@ RawClient.prototype._notify = function () {
 };
 
 RawClient.prototype.open = function () {
+  if (this.memory) {
+    return Promise.resolve();
+  }
   var ws = this.ws;
   return new Promise(function (resolve, reject) {
     ws.once('open', resolve);
@@ -73,12 +103,12 @@ RawClient.prototype.open = function () {
 };
 
 RawClient.prototype.send = function (command, headers, body) {
-  this.ws.send(buildFrame(command, headers, body));
+  this._write(buildFrame(command, headers, body));
 };
 
 /** Send raw data (string: text message, Buffer: binary message) */
 RawClient.prototype.sendRaw = function (data) {
-  this.ws.send(data);
+  this._write(data);
 };
 
 /** Resolve with the first received frame matching `predicate`. */
@@ -125,13 +155,18 @@ RawClient.prototype.waitForClose = function (timeout) {
     if (self.closed) {
       return resolve();
     }
+    function check() {
+      if (self.closed) {
+        clearTimeout(timer);
+        self.waiters.splice(self.waiters.indexOf(check), 1);
+        resolve();
+      }
+    }
     var timer = setTimeout(function () {
+      self.waiters.splice(self.waiters.indexOf(check), 1);
       reject(new Error('Timed out waiting for socket close'));
     }, timeout || 1000);
-    self.ws.once('close', function () {
-      clearTimeout(timer);
-      resolve();
-    });
+    self.waiters.push(check);
   });
 };
 
@@ -207,7 +242,11 @@ RawClient.prototype.connect = function (headers) {
 };
 
 RawClient.prototype.close = function () {
-  this.ws.terminate();
+  if (this.memory) {
+    this.memory.close();
+  } else {
+    this.ws.terminate();
+  }
 };
 
 function delay(ms) {
@@ -219,11 +258,19 @@ function delay(ms) {
 
 /**
  * Registers mocha hooks that create clients per test and tear down the broker
- * and all clients afterwards. Returns a context with `start(config)` and
- * `client(path)`; `ctx.broker` and `ctx.port` are set after `start`.
+ * and all clients afterwards. Returns a context with `start(config)` (http
+ * server and ws), `startMemory(config)` (in-memory transport, no port) and
+ * `client(path)`; `ctx.broker` and `ctx.port` (or `ctx.transport`) are set
+ * after starting.
  */
 function useBroker() {
-  var ctx = {broker: null, server: null, port: null, clients: []};
+  var ctx = {broker: null, server: null, port: null, transport: null, clients: []};
+
+  ctx.startMemory = function (config) {
+    ctx.transport = new StompServer.MemoryTransport();
+    ctx.broker = new StompServer(Object.assign({transport: ctx.transport}, config));
+    return Promise.resolve(ctx.broker);
+  };
 
   ctx.start = function (config) {
     ctx.server = http.createServer();
@@ -237,7 +284,7 @@ function useBroker() {
   };
 
   ctx.client = function (path) {
-    var client = new RawClient(ctx.port, path);
+    var client = new RawClient(ctx.transport || ctx.port, path);
     ctx.clients.push(client);
     return client;
   };
@@ -246,19 +293,23 @@ function useBroker() {
     ctx.clients = [];
     ctx.server = null;
     ctx.broker = null;
+    ctx.transport = null;
   });
 
-  afterEach(function (done) {
+  afterEach(function () {
     ctx.clients.forEach(function (c) {
       c.close();
     });
-    if (ctx.server) {
-      ctx.server.close(function () {
-        done();
-      });
-    } else {
-      done();
-    }
+    var closed = ctx.broker ? ctx.broker.close() : Promise.resolve();
+    return closed.then(function () {
+      if (ctx.server) {
+        return new Promise(function (resolve) {
+          ctx.server.close(function () {
+            resolve();
+          });
+        });
+      }
+    });
   });
 
   return ctx;

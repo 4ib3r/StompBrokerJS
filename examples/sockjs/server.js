@@ -16,6 +16,11 @@ const stompServer = new StompServer({
     heartbeat: [2000,2000]
 });
 
+// close STOMP connections cleanly on Ctrl+C
+process.on('SIGINT', () => {
+    stompServer.close().then(() => server.close());
+});
+
 console.log(' [*] Listening on localhost:3002');
 server.listen(3002, 'localhost');
 

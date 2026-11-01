@@ -12,12 +12,14 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 * STOMP 1.0 and 1.1 (version negotiation, header escaping, heart-beats in both directions)
 * Transactions (BEGIN / COMMIT / ABORT)
 * ACK / NACK (at-most-once delivery, see "Delivery guarantees")
-* WebSocket (`ws`) and SockJS transports
+* WebSocket (`ws`) and SockJS transports, custom transports, an in-memory transport for tests
+* Graceful shutdown with `server.close()`
 
 # TODO
 * Authorization: built-in `authenticate` / `authorize` hooks (planned for 2.0.0); until then use `connect`,
   `subscribe` and `send` middleware, see "Validating clients on connect"
 * Async send messages: `publish()` returning a Promise (planned for 2.0.0)
+* `transport` / `transportOptions` replacing `protocol` / `protocolConfig` (planned for 2.0.0)
 * STOMP 1.2 (planned for 2.0.0)
 * Composite Destinations
 * Message selectors
@@ -51,6 +53,14 @@ Not planned: redelivery of unacknowledged messages, the broker delivers at-most-
         * Middleware and the `subscribe` / `unsubscribe` events (`subscription.socket`) get a session object
           (`sessionId`, `version`, `state`, `close()`) instead of the raw WebSocket; `subscribes` is a read-only
           snapshot; the internal `heartbeatOn` / `heartbeatOff` methods are gone.
+        * `sockjs` is an optional peer dependency: install it (`npm install sockjs`) to use `protocol: 'sockjs'`;
+          creating a SockJS server without it throws an error saying so.
+        * SockJS: `protocolConfig.sockjs_url` and `protocolConfig.prefix` are no longer overwritten (the broker
+          forced an unpinned CDN `sockjs_url`); without `sockjs_url` SockJS uses its own default, `prefix`
+          defaults to `path`.
+        * `StompServer#socket` is the SockJS server itself for `protocol: 'sockjs'` (was an internal adapter with
+          `on('connection')`); the internal `lib/adapter` module is replaced by `lib/transport`. `socket` is
+          deprecated, use `handleUpgrade()` for `noServer`.
     * Malformed frames (e.g. missing destination) are answered with ERROR instead of crashing the process;
       socket errors are emitted only when an `error` listener is registered.
     * Frames are decoded incrementally: a WebSocket message may contain several frames and a frame may span
@@ -89,6 +99,13 @@ Not planned: redelivery of unacknowledged messages, the broker delivers at-most-
     * Bodies containing blank lines or NULL octets (with `content-length`) are parsed correctly.
     * Fixed wildcard matching (`/a.b.c` no longer receives messages for `/a.b`).
     * Rejected CONNECT closes the connection; middleware may return a Promise.
+    * `server.close()` shuts the broker down: ERROR `server shutting down` to every open connection, which is
+      then closed, timers stopped, transport closed (an http server passed in is left open); see "Shutdown".
+    * Transports implement a small `Transport` / `Connection` interface; a custom transport object can be
+      passed as `transport`, `StompServer.MemoryTransport` connects clients in-process without sockets (tests);
+      see "Transports".
+    * `server.handleUpgrade(request, socket, head)` for `protocolConfig.noServer`.
+    * `sockjs` is loaded only when the SockJS transport is used.
     * TypeScript type definitions (`stompServer.d.ts`).
     * `protocolConfig.noServer` is supported for the `ws` protocol.
     * Errors are thrown as `Error` instances.
@@ -135,8 +152,9 @@ The package is CommonJS: use `import StompServer = require(...)`, or a default i
 new StompServer({
   server: server,                // http.Server, required unless protocolConfig.noServer is set
   path: '/stomp',                // WebSocket path (SockJS prefix)
-  protocol: 'ws',                // 'ws' or 'sockjs'
+  protocol: 'ws',                // 'ws' or 'sockjs', see "Transports"
   protocolConfig: {},            // extra options for the ws / sockjs server
+  transport: undefined,          // a custom Transport object instead of protocol, see "Transports"
   heartbeat: [0, 0],             // [server sends every ms, server expects every ms], 0 disables
   heartbeatErrorMargin: 1000,    // tolerance for late client heart-beats
   serverName: 'STOMP-JS/x.y.z',
@@ -165,15 +183,51 @@ are dropped (`slowConsumerPolicy: 'drop'`, the `slowConsumer` event is emitted) 
 (`'close'`); SockJS connections don't report queued data, so this applies to `ws` connections only.
 Options in `protocolConfig` (e.g. `maxPayload`, `perMessageDeflate`) take precedence over these defaults.
 
+## Transports
+* `protocol: 'ws'` (default): WebSocket server of the [`ws`](https://github.com/websockets/ws) package on
+  `server` at `path`; `protocolConfig` is passed to its `WebSocketServer` (e.g. `perMessageDeflate`,
+  `maxPayload`, `verifyClient`).
+* `protocol: 'sockjs'`: [SockJS](https://github.com/sockjs/sockjs-node) server with the prefix `path`.
+  `sockjs` is an optional peer dependency, install it yourself: `npm install sockjs`. `protocolConfig` is
+  passed to `sockjs.createServer`; set `sockjs_url` to a pinned or self-hosted copy of sockjs-client (used by
+  the iframe-based fallbacks), otherwise SockJS's own default is used. SockJS has text messages only and
+  doesn't report queued data (no slow-consumer detection).
+* `transport: object`: any object with `onConnection(cb)` and `close()` (returning a Promise); `cb` is called
+  with a connection (`send(data)`, `close(code, reason)`, `bufferedAmount`, `onMessage(cb(data, isBinary))`,
+  `onClose(cb)`, `onError(cb)`, optionally `readyState`, 1 meaning open) and the http request, if there is one.
+  No `server` is needed. `transport: 'ws'` and `transport: 'sockjs'` work as `protocol`.
+
+### In-memory transport (tests)
+```javascript
+var memory = new StompServer.MemoryTransport();
+var stompServer = new StompServer({transport: memory});
+var client = memory.connect();            // client end of a new connection, no sockets involved
+client.onMessage(function (data, isBinary) { console.log(data.toString()); });
+client.send('CONNECT\naccept-version:1.1\n\n\0');
+```
+Data is delivered asynchronously, in order; a string is a text message, a Buffer a binary message.
+
 ### Sharing an http server (`noServer`)
 ```javascript
 var stompServer = new StompServer({protocolConfig: {noServer: true}});
 server.on('upgrade', function (request, socket, head) {
   if (request.url === '/stomp') {
-    stompServer.socket.handleUpgrade(request, socket, head, function (ws) {
-      stompServer.socket.emit('connection', ws, request);
-    });
+    stompServer.handleUpgrade(request, socket, head);
   }
+});
+```
+
+### Shutdown
+`stompServer.close()` returns a Promise: every open connection gets an ERROR frame with the message
+`server shutting down` and is closed (`disconnected` is emitted for each), heart-beat and CONNECT timers are
+stopped and the transport stops accepting connections. It resolves once the connections are closed; ws
+connections that don't complete the close handshake within 2 s are dropped. An http server passed as
+`server` is not closed, close it yourself afterwards. Calling `close()` again returns the same Promise.
+```javascript
+process.on('SIGTERM', function () {
+  stompServer.close().then(function () {
+    server.close();
+  });
 });
 ```
 

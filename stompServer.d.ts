@@ -24,11 +24,24 @@ declare class StompServer extends EventEmitter {
   readonly conf: StompServer.ResolvedConfig;
 
   /**
-   * Transport server: a `ws` WebSocketServer (`protocol: 'ws'`) or the SockJS
-   * adapter. With `protocolConfig.noServer` use `handleUpgrade` and
-   * `emit('connection', ws, request)` to hand over upgraded connections.
+   * Transport server: the `ws` WebSocketServer (`protocol: 'ws'`) or the SockJS
+   * server (`protocol: 'sockjs'`); the Transport object for a custom transport.
+   * @deprecated for `noServer` use `handleUpgrade(request, socket, head)`
    */
   readonly socket: StompServer.TransportServer;
+
+  /**
+   * Shut down: open connections get an ERROR frame (`server shutting down`) and
+   * are closed, timers are stopped, the transport is closed. An http server
+   * passed in `server` is not closed. Calling it again returns the same Promise.
+   */
+  close(): Promise<void>;
+
+  /**
+   * Hand an http upgrade request to the ws transport, for `protocolConfig.noServer`.
+   * Throws for other transports.
+   */
+  handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void;
 
   /** All subscriptions (read-only snapshot, in subscription order) */
   readonly subscribes: StompServer.Subscription[];
@@ -115,7 +128,65 @@ declare namespace StompServer {
 
   type SlowConsumerPolicy = 'drop' | 'close';
 
+  /** Built-in transports */
   type Protocol = 'ws' | 'sockjs';
+
+  /**
+   * A transport connection. `send` gets a string for text frames and a Buffer
+   * for binary ones; `onMessage` reports whether data arrived as a binary message.
+   */
+  interface Connection {
+    send(data: string | Buffer): void;
+    close(code?: number, reason?: string): void;
+    /** Bytes queued for sending, 0 if unknown */
+    readonly bufferedAmount: number;
+    /** WebSocket ready state (1 = open); without one the connection counts as open until closed by either side */
+    readonly readyState?: number;
+    onMessage(cb: (data: Buffer | string, isBinary: boolean) => void): void;
+    onClose(cb: () => void): void;
+    onError(cb: (err: Error) => void): void;
+  }
+
+  /** A source of connections, e.g. a WebSocket server; see README "Transports" */
+  interface Transport {
+    /** Called for every new connection, with the request that opened it when there is one */
+    onConnection(cb: (connection: Connection, request?: IncomingMessage) => void): void;
+    /** Stop accepting connections; resolves when the open ones are closed */
+    close(): Promise<void>;
+    /** Optional, used by `StompServer#handleUpgrade` */
+    handleUpgrade?(request: IncomingMessage, socket: Duplex, head: Buffer): void;
+  }
+
+  /** Client end of an in-memory connection, see `MemoryTransport#connect` */
+  interface MemoryConnection extends Connection {
+    readonly readyState: number;
+    /** Writable, to simulate a slow consumer on the broker end */
+    bufferedAmount: number;
+    /** Close code and reason given by the side that closed the connection */
+    readonly closeCode: number | undefined;
+    readonly closeReason: string | undefined;
+    /** The broker end of the connection */
+    readonly peer: MemoryConnection;
+    /** Emit an error on this end */
+    emitError(err: Error): void;
+  }
+
+  /**
+   * In-process transport without sockets, e.g. for tests:
+   * `new StompServer({transport: memory})`, then `memory.connect()`.
+   * Data is delivered asynchronously, in order.
+   */
+  class MemoryTransport implements Transport {
+    static readonly CONNECTING: 0;
+    static readonly OPEN: 1;
+    static readonly CLOSING: 2;
+    static readonly CLOSED: 3;
+    readonly closed: boolean;
+    onConnection(cb: (connection: Connection, request?: IncomingMessage) => void): void;
+    /** Open a connection to the broker; returns the client end */
+    connect(request?: any): MemoryConnection;
+    close(): Promise<void>;
+  }
 
   /** Resource limits; sizes are bytes, times milliseconds. Each can be raised, or disabled with Infinity. */
   interface Limits {
@@ -138,7 +209,7 @@ declare namespace StompServer {
   }
 
   interface ServerConfig {
-    /** Http server, required unless `protocolConfig.noServer` is set (ws only) */
+    /** Http server, required unless `protocolConfig.noServer` is set (ws) or a custom transport is used */
     server?: HttpServer | HttpsServer;
     /** Name sent in the CONNECTED frame. Default `STOMP-JS/<version>` */
     serverName?: string;
@@ -150,8 +221,10 @@ declare namespace StompServer {
     heartbeatErrorMargin?: number;
     /** Debug logger */
     debug?: (...args: any[]) => void;
-    /** Transport. Default `ws` */
+    /** Built-in transport. Default `ws` */
     protocol?: Protocol;
+    /** Built-in transport name (same as `protocol`) or a custom Transport object; don't combine with `protocol` */
+    transport?: Protocol | Transport;
     /** Extra options for the ws / sockjs server; they take precedence over broker defaults */
     protocolConfig?: { noServer?: boolean; [option: string]: unknown };
     /** Resource limits, unknown names are rejected */
@@ -167,13 +240,16 @@ declare namespace StompServer {
     heartbeat: [number, number];
     heartbeatErrorMargin: number;
     debug: (...args: any[]) => void;
-    protocol: Protocol;
+    /** `custom` for a Transport object */
+    protocol: Protocol | 'custom';
     protocolConfig: { noServer?: boolean; [option: string]: unknown };
+    /** The custom Transport object, undefined for a built-in transport */
+    transport: Transport | undefined;
     limits: Limits;
     slowConsumerPolicy: SlowConsumerPolicy;
   }
 
-  /** Transport server (`ws` WebSocketServer or the SockJS adapter), see `StompServer#socket` */
+  /** Transport server (`ws` WebSocketServer or the SockJS server), see `StompServer#socket` */
   interface TransportServer {
     on(event: 'connection', listener: (connection: any, request?: IncomingMessage) => void): unknown;
     /** ws only */
@@ -188,6 +264,8 @@ declare namespace StompServer {
     /** Negotiated STOMP version, undefined before CONNECT */
     readonly version: StompVersion | undefined;
     readonly state: SessionState;
+    /** Request that opened the connection, when the transport has one (ws) */
+    readonly request: IncomingMessage | undefined;
     /** Bytes queued on the transport connection */
     readonly bufferedAmount: number;
     /** The transport is open */
