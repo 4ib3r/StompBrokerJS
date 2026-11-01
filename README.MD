@@ -26,7 +26,7 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 * 0.1.1 Added wildcards to destination, change subscribe method [no backward compatibility]
 * 0.1.2 Bug fixes, changed websocket library, updated documentation.
 * 0.1.3 Unsubscribe on server, updated documentation, added events.
-* 2.0.0 (unreleased)
+* 2.0.0-rc.0 (release candidate, npm tag `next`)
     * Breaking changes:
         * Node.js 20 or newer.
         * Every ERROR frame closes the connection (rejected commands, unknown subscription ids, malformed
