@@ -14,10 +14,11 @@ This is simple NodeJs STOMP 1.1 broker for embedded usage.
 * ACK / NACK (at-most-once delivery, see "Delivery guarantees")
 * WebSocket (`ws`) and SockJS transports, custom transports, an in-memory transport for tests
 * Graceful shutdown with `server.close()`
+* `authenticate` / `authorize` hooks, optional ban on wildcard subscriptions
 
 # TODO
-* Authorization: built-in `authenticate` / `authorize` hooks (planned for 2.0.0); until then use `connect`,
-  `subscribe` and `send` middleware, see "Validating clients on connect"
+* Authorization: a one-time warning when a server has neither `authenticate` / `authorize` nor `connect`
+  middleware (planned); `ctx.principal` with the 2.0 middleware API (planned for 2.0.0)
 * Async send messages: `publish()` returning a Promise (planned for 2.0.0)
 * `transport` / `transportOptions` replacing `protocol` / `protocolConfig` (planned for 2.0.0)
 * STOMP 1.2 (planned for 2.0.0)
@@ -105,6 +106,11 @@ Not planned: redelivery of unacknowledged messages, the broker delivers at-most-
       passed as `transport`, `StompServer.MemoryTransport` connects clients in-process without sockets (tests);
       see "Transports".
     * `server.handleUpgrade(request, socket, head)` for `protocolConfig.noServer`.
+    * Security hooks: `authenticate` (CONNECT credentials → principal, stored as `session.principal` and passed
+      to the `connected` event), `authorize` (client SUBSCRIBE and SEND, ERROR `Access denied`) and
+      `allowWildcardSubscriptions: false`; see "Authentication and authorization".
+    * Frames sent right after a CONNECT that is still being processed (asynchronous `authenticate` or `connect`
+      middleware) are processed once the client is connected, instead of being rejected with `Not connected`.
     * `sockjs` is loaded only when the SockJS transport is used.
     * TypeScript type definitions (`stompServer.d.ts`).
     * `protocolConfig.noServer` is supported for the `ws` protocol.
@@ -250,7 +256,49 @@ which drops them; the transaction is started with BEGIN. `send` middleware runs 
 COMMIT delivers everything that was accepted. Open transactions of a closed connection are dropped.
 ACK and NACK may name an open transaction as well.
 
-## Validating clients on connect
+## Authentication and authorization
+```javascript
+var stompServer = new StompServer({
+  server: server,
+  // CONNECT / STOMP: return the principal (any truthy value) or a Promise of it
+  authenticate: function (credentials) {   // {login, passcode, headers, sessionId, request}
+    return users.check(credentials.login, credentials.passcode).then(function (user) {
+      return user || null;                 // falsy: ERROR "Authentication failed", connection closed
+    });
+  },
+  // client SUBSCRIBE and SEND: true allows, anything else is answered with ERROR "Access denied"
+  authorize: function (principal, action, destination, session) {   // action: 'subscribe' or 'send'
+    if (action === 'subscribe') {
+      return destination.indexOf('/public.') === 0 || principal.isAdmin;
+    }
+    return Promise.resolve(principal.canPublish(destination));
+  },
+  allowWildcardSubscriptions: false        // clients may not subscribe to /** (default true)
+});
+```
+* `authenticate` runs for every CONNECT before `connect` middleware. A falsy result (`null`, `false`,
+  `undefined`) rejects the client with an ERROR frame (`Authentication failed`) and closes the connection; a
+  thrown (or rejected) `StompServer.StompError` sends its message instead, any other error is reported as
+  `Internal error` and emitted as an `error` event. The passcode never reaches `debug` or ERROR frames.
+  `request` is the http request of the WebSocket upgrade (ws transport only, e.g. for cookies).
+* The principal is available, read-only, as `socket.principal` in middleware (and `subscription.socket.principal`
+  in `subscribe` events) and is the third argument of the `connected` event. Without `authenticate` it is
+  `undefined`.
+* `authorize` runs for client SUBSCRIBE and SEND frames before their middleware; a SEND in a transaction is
+  checked when it arrives, not on COMMIT. Only `true` (or a Promise of `true`) allows the command; anything
+  else sends ERROR `Access denied` and closes the connection. Errors are handled as for `authenticate`.
+* `allowWildcardSubscriptions: false` rejects client SUBSCRIBE destinations containing a `*` or `**` name
+  (`Wildcard subscriptions are not allowed`); without it any client can subscribe to `/**` and read every
+  message. It is checked before `authorize`.
+* Server-side `stompServer.send()` and `stompServer.subscribe()` are trusted: they are neither authorized nor
+  restricted by `allowWildcardSubscriptions`.
+* Hooks may be asynchronous; frames of a connection are still processed one after another in the order they
+  were received, frames sent while `authenticate` is pending wait for it.
+
+Without these options every client may connect, subscribe to anything (including `/**`) and send to any
+destination.
+
+## Middleware
 Middleware receives `(socket, args, next)`; return `next()` to continue or a falsy value to reject.
 A rejected command is answered with an ERROR frame and the connection is closed. Middleware may return a Promise.
 ```javascript
@@ -268,7 +316,7 @@ is sent in the ERROR frame. Other errors are reported to the client as `Internal
 events, so that internal details don't leak.
 ```javascript
 stompServer.addMiddleware('subscribe', function (socket, args, next) {
-  if (!mayRead(socket.sessionId, args.dest)) {
+  if (!mayRead(socket.principal, args.dest)) {
     throw new StompServer.StompError('Access denied');
   }
   return next();
@@ -277,7 +325,7 @@ stompServer.addMiddleware('subscribe', function (socket, args, next) {
 
 ## Events
 * `connecting` (sessionId) — socket opened
-* `connected` (sessionId, headers) — CONNECT accepted
+* `connected` (sessionId, headers, principal) — CONNECT accepted, `principal` from `authenticate`
 * `subscribe` (subscription) — a client (or the server) subscribed, emitted without any message being sent
 * `unsubscribe` (subscription)
 * `send` ({dest, frame}) — message published

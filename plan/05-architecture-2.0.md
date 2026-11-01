@@ -67,6 +67,27 @@ Done. Decisions:
 `authenticate` / `authorize` / `allowWildcardSubscriptions`, `index.d.ts`
 checked in CI, jsdoc from the new API, README rewrite.
 
+Hooks done on the current (1.x-style) API, before 5c. Decisions:
+
+- `authenticate({login, passcode, headers, sessionId, request})` runs before
+  `connect` middleware; a falsy result rejects (ERROR `Authentication
+  failed`), a `StompError` sends its message, other errors `Internal error`
+  + `error` event. The principal is `session.principal` (read-only getter)
+  and the third argument of `connected`; a repeated CONNECT doesn't
+  re-authenticate.
+- `authorize(principal, action, destination, session)` runs before the
+  `subscribe` / `send` middleware; only `true` allows (a truthy non-boolean
+  denies). Transactional SEND is checked on arrival, COMMIT is not checked
+  again. Server-side `send()` / `subscribe()` are trusted.
+- `allowWildcardSubscriptions` (default `true`) is checked before
+  `authorize`; only names exactly `*` / `**` count as wildcards.
+- Frames pipelined behind a pending (async) CONNECT are queued and checked
+  when their turn comes instead of being rejected with `Not connected`.
+- Open: the one-time warning for servers without hooks or `connect`
+  middleware (no good channel before 5c's `emitWarning` decision; `debug`
+  is silent by default); `ctx.principal` / `SessionInfo.principal`,
+  `index.d.ts`, jsdoc from the new API and the README rewrite come with 5c.
+
 ## Goal
 
 Replace the constructor-closure god object with small, separately testable
@@ -196,7 +217,7 @@ new StompServer({
 - [x] `transport/ws.js` on ws 8, `transport/sockjs.js` lazy + peer dep
 - [ ] `class StompServer`: private fields, `publish`, `Subscription`,
       `close()` (done in 5b), events with `SessionInfo`
-- [ ] `authenticate` / `authorize` / `allowWildcardSubscriptions`
+- [x] `authenticate` / `authorize` / `allowWildcardSubscriptions`
 - [ ] `index.js`, `index.d.ts`, `tsc --noEmit` job in CI checking the
       examples against the types
 - [ ] remove dead code, fix JSDoc

@@ -15,6 +15,41 @@ new StompServer({ protocol: 'sockjs', server: server });
 new StompServer({ protocolConfig: { noServer: true } });
 new StompServer({ server: server, transport: 'sockjs', protocolConfig: { sockjs_url: '/js/sockjs.min.js' } });
 
+// security hooks
+interface User { name: string; roles: string[] }
+const secured = new StompServer({
+  server: server,
+  allowWildcardSubscriptions: false,
+  authenticate: async function (credentials): Promise<User | null> {
+    const login: string | undefined = credentials.login;
+    const passcode: string | undefined = credentials.passcode;
+    const sessionId: string = credentials.sessionId;
+    const url: string | undefined = credentials.request && credentials.request.url;
+    void sessionId; void url; void credentials.headers['x-token'];
+    return login && passcode === 'secret' ? { name: login, roles: [] } : null;
+  },
+  authorize: function (principal: User, action, destination, session) {
+    const a: StompServer.AuthorizeAction = action;
+    void a; void session.sessionId;
+    return action === 'subscribe' ? destination.startsWith('/public') : principal.roles.indexOf('writer') >= 0;
+  }
+});
+secured.on('connected', function (sessionId, headers, principal: User) {
+  void sessionId; void headers; void principal.name;
+});
+secured.addMiddleware('subscribe', function (socket, args, next) {
+  const user = socket.principal as User;
+  void user; void args;
+  // @ts-expect-error the principal is read-only
+  socket.principal = null;
+  return next();
+});
+new StompServer({ server: server, authorize: async () => true });
+// @ts-expect-error authorize returns a boolean
+new StompServer({ server: server, authorize: () => 'yes' });
+// @ts-expect-error allowWildcardSubscriptions is a boolean
+new StompServer({ server: server, allowWildcardSubscriptions: 'no' });
+
 // transports
 const memory = new StompServer.MemoryTransport();
 const memoryServer = new StompServer({ transport: memory });

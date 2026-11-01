@@ -231,7 +231,36 @@ declare namespace StompServer {
     limits?: Partial<Limits>;
     /** What to do with a message for a slow consumer. Default `drop` */
     slowConsumerPolicy?: SlowConsumerPolicy;
+    /**
+     * Runs for every CONNECT / STOMP frame, before `connect` middleware. Return
+     * (or resolve to) the principal; a falsy value rejects the CONNECT
+     * (ERROR `Authentication failed`), a thrown `StompError` sends its message.
+     */
+    authenticate?: (credentials: Credentials) => unknown;
+    /**
+     * Runs for every client SUBSCRIBE and SEND (a transactional SEND when it
+     * arrives), before middleware. Only `true` allows the command, anything else
+     * is answered with ERROR `Access denied`. Server-side `send()` / `subscribe()`
+     * are not checked.
+     */
+    authorize?: (principal: any, action: AuthorizeAction, destination: string, session: Session) =>
+      boolean | Promise<boolean>;
+    /** false rejects client subscriptions containing `*` or `**`. Default true */
+    allowWildcardSubscriptions?: boolean;
   }
+
+  /** Argument of the `authenticate` hook */
+  interface Credentials {
+    login: string | undefined;
+    passcode: string | undefined;
+    /** All CONNECT headers */
+    headers: StompHeaders;
+    sessionId: string;
+    /** Request that opened the connection, when the transport has one (ws) */
+    request: IncomingMessage | undefined;
+  }
+
+  type AuthorizeAction = 'subscribe' | 'send';
 
   interface ResolvedConfig {
     server: HttpServer | HttpsServer | undefined;
@@ -247,6 +276,9 @@ declare namespace StompServer {
     transport: Transport | undefined;
     limits: Limits;
     slowConsumerPolicy: SlowConsumerPolicy;
+    authenticate: ServerConfig['authenticate'];
+    authorize: ServerConfig['authorize'];
+    allowWildcardSubscriptions: boolean;
   }
 
   /** Transport server (`ws` WebSocketServer or the SockJS server), see `StompServer#socket` */
@@ -266,6 +298,8 @@ declare namespace StompServer {
     readonly state: SessionState;
     /** Request that opened the connection, when the transport has one (ws) */
     readonly request: IncomingMessage | undefined;
+    /** Result of the `authenticate` hook; undefined before CONNECT and without the hook */
+    readonly principal: any;
     /** Bytes queued on the transport connection */
     readonly bufferedAmount: number;
     /** The transport is open */
@@ -389,8 +423,8 @@ declare namespace StompServer {
   interface StompServerEvents {
     /** Socket opened */
     connecting: (sessionId: string) => void;
-    /** CONNECT accepted */
-    connected: (sessionId: string, headers: StompHeaders) => void;
+    /** CONNECT accepted; `principal` is the result of the `authenticate` hook */
+    connected: (sessionId: string, headers: StompHeaders, principal: any) => void;
     disconnected: (sessionId: string) => void;
     subscribe: (subscription: Subscription) => void;
     unsubscribe: (subscription: Subscription) => void;

@@ -13,7 +13,7 @@ builds on the previous one and must leave CI green.
 | 5a | [Internal extraction: Session, subscription trie](05-architecture-2.0.md#5a-internal-extraction) | 2.0.0 | M | done (2.0.0-rc.0) |
 | 5b | [Transports: ws 8, interface, optional SockJS, `close()`](05-architecture-2.0.md#5b-transports) | 2.0.0 | M | done |
 | 5c | [Public 2.0 API](05-architecture-2.0.md#5c-public-20-api) | 2.0.0 | L | planned |
-| 5d | [Security hooks, types, docs](05-architecture-2.0.md#5d-security-hooks-types-docs) | 2.0.0 | M | planned |
+| 5d | [Security hooks, types, docs](05-architecture-2.0.md#5d-security-hooks-types-docs) | 2.0.0 | M | partial: `authenticate` / `authorize` / `allowWildcardSubscriptions`, types (`stompServer.d.ts`, `npm run typecheck`), README section done; `index.d.ts`, `ctx.principal` / `SessionInfo.principal`, jsdoc from the new API and the README rewrite wait for 5c; one-time warning open |
 | 6 | STOMP 1.2 support, B1 fix, 1.1 follow-ups ([1.1 check](stomp-1.1-compliance.md), [1.2 check](stomp-1.2-compliance.md#proposed-step-6-stomp-12)) | 2.0.0 | M | partial: B1 and G5 done (2.0.0-rc.0); G1–G4, D3 open |
 
 **Release decision:** there are no 1.x releases in between; everything above

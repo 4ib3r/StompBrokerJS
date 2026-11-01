@@ -30,6 +30,11 @@ var buildConfig     = require('./lib/config');
  *   (see README "Transports")
  * @param {('drop'|'close')} [slowConsumerPolicy=drop] What to do with messages for a client whose
  *   connection has more than limits.maxBufferedAmount bytes queued
+ * @param {function} [authenticate] ({login, passcode, headers, sessionId, request}) => principal, or a
+ *   Promise of it; a falsy principal (or a throw) rejects the CONNECT. See README "Authentication and authorization"
+ * @param {function} [authorize] (principal, action, destination, session) => boolean, or a Promise of it;
+ *   action is 'subscribe' or 'send', only `true` allows the command
+ * @param {boolean} [allowWildcardSubscriptions=true] false rejects client subscriptions with `*` or `**`
  */
 
 /**
@@ -323,19 +328,97 @@ var StompServer = function (config) {
 
 
   /**
+   * Run the authenticate hook for a CONNECT frame and store the principal on
+   * the session. Rejection (falsy principal) throws a StompError.
+   *
+   * @return {Promise|undefined} a Promise when the hook is asynchronous
+   * @private
+   */
+  this._authenticate = function (session, headers) {
+    var authenticate = this.conf.authenticate;
+    if (authenticate === undefined) {
+      return;
+    }
+    var self = this;
+    return stomp.andThen(authenticate({
+      login: headers.login,
+      passcode: headers.passcode,
+      headers: headers,
+      sessionId: session.sessionId,
+      request: session.request
+    }), function (principal) {
+      // the connection closed while the (async) hook was deciding
+      if (!session.isOpen()) {
+        return;
+      }
+      if (!principal) {
+        // never the passcode
+        self.conf.debug('Authentication failed', session.sessionId, headers.login);
+        throw new StompError('Authentication failed');
+      }
+      session._principal = principal;
+    });
+  };
+
+  /**
+   * Run the authorize hook for a client SUBSCRIBE or SEND; anything but
+   * `true` throws StompError('Access denied'). Server-side send() and
+   * subscribe() are trusted and not authorized.
+   *
+   * @param {Session} session
+   * @param {('subscribe'|'send')} action
+   * @param {string} destination
+   * @return {Promise|undefined} a Promise when the hook is asynchronous
+   * @private
+   */
+  this._authorize = function (session, action, destination) {
+    var authorize = this.conf.authorize;
+    if (authorize === undefined) {
+      return;
+    }
+    stompUtils.tokenizeDestination(destination);
+    var self = this;
+    return stomp.andThen(authorize(session.principal, action, destination, session), function (allowed) {
+      if (allowed !== true) {
+        self.conf.debug('Access denied', session.sessionId, action, destination);
+        throw new StompError('Access denied');
+      }
+    });
+  };
+
+  /**
+   * StompError for a client subscription with a wildcard when
+   * allowWildcardSubscriptions is false
+   * @private
+   */
+  this._checkWildcards = function (destination) {
+    if (this.conf.allowWildcardSubscriptions) {
+      return;
+    }
+    var wildcard = stompUtils.tokenizeDestination(destination).some(function (token) {
+      return token === '*' || token === '**';
+    });
+    if (wildcard) {
+      throw new StompError('Wildcard subscriptions are not allowed');
+    }
+  };
+
+
+  /**
    * Client connected event, emitted after connection established and negotiated
    *
    * @event StompServer#connected
    * @type {object}
    * @property {string} sessionId
    * @property {object} headers
+   * @property {*} principal result of the authenticate hook, undefined without it
    */
   this.onClientConnected = withMiddleware('connect', function (socket, args) {
     if (socket.state === Session.STATE.CLOSED) {
       return false;
     }
     this.conf.debug('CONNECT', socket.sessionId, args.heartbeat, redactCredentials(args.headers));
-    this.emit('connected', socket.sessionId, args.headers);
+    this.emit('connected', socket.sessionId, args.headers, socket.principal);
     return true;
   });
 
@@ -798,12 +881,21 @@ var StompServer = function (config) {
       return;
     }
     var known = Object.prototype.hasOwnProperty.call(this.frameHandler, frame.command);
+    var self = this;
     if (!socket.isConnected() && CONNECT_COMMANDS.indexOf(frame.command) < 0) {
-      if (!known) {
-        unknownCommand(socket, frame);
-      } else {
-        stomp.fail(socket, 'Not connected', 'CONNECT frame is required before ' + frame.command);
+      if (!socket.isBusy()) {
+        notConnected(socket, frame, known);
+        return;
       }
+      // sent right after a CONNECT that is still being processed (async
+      // authenticate or middleware): decided once it is this frame's turn
+      socket.enqueue(function () {
+        if (!socket.isConnected()) {
+          notConnected(socket, frame, known);
+          return;
+        }
+        return self._processFrame(socket, frame, known);
+      });
       return;
     }
     if (frame.command === 'DISCONNECT') {
@@ -811,11 +903,19 @@ var StompServer = function (config) {
       // before the DISCONNECT are still being processed
       socket.state = Session.STATE.DISCONNECTING;
     }
-    var self = this;
     socket.enqueue(function () {
       return self._processFrame(socket, frame, known);
     });
   };
+
+  /** ERROR for a frame other than CONNECT before the session is connected, then close */
+  function notConnected(socket, frame, known) {
+    if (!known) {
+      unknownCommand(socket, frame);
+    } else {
+      stomp.fail(socket, 'Not connected', 'CONNECT frame is required before ' + frame.command);
+    }
+  }
 
   /**
    * Run the command handler of a frame
